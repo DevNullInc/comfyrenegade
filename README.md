@@ -2,7 +2,7 @@
 
 An unofficial, native Android UI for [ComfyUI](https://github.com/comfyanonymous/ComfyUI). [Forked from ComfyChair](https://github.com/legal-hkr/ComfyRenegade) with advanced workflow graph processing and enhanced node compatibility.
 
-**Current version**: v0.8.12
+**Current version**: v0.0.1-alpha
 
 [<img src="https://raw.githubusercontent.com/rubenpgrady/get-it-on-github/refs/heads/main/get-it-on-github.png"
     alt="Get it on GitHub"
