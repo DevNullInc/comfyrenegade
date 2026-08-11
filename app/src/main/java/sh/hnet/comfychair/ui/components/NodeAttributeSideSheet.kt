@@ -264,12 +264,83 @@ private fun isEditableType(type: String): Boolean {
 }
 
 /**
- * Compare two values for equality, handling numeric type mismatches.
+ * Helper to parse any value (Boolean, Int, String "1"/"0"/"On"/"Off") as Boolean.
+ */
+private fun parseBooleanValue(value: Any?): Boolean {
+    return when (value) {
+        is Boolean -> value
+        is Number -> value.toDouble() != 0.0
+        is String -> when (value.trim().lowercase()) {
+            "true", "1", "1.0", "on", "enable", "enabled", "yes" -> true
+            "false", "0", "0.0", "off", "disable", "disabled", "no" -> false
+            else -> value.isNotEmpty()
+        }
+        else -> false
+    }
+}
+
+/**
+ * Helper to format boolean toggle result back to original data type / format.
+ */
+private fun formatBooleanForInput(newBool: Boolean, originalValue: Any?, definition: InputDefinition?): Any {
+    val options = definition?.options ?: emptyList()
+
+    // 1. If definition has options (ENUM dropdown like ["On", "Off"])
+    if (options.isNotEmpty()) {
+        if ("On" in options && "Off" in options) {
+            return if (newBool) "On" else "Off"
+        }
+        if ("true" in options && "false" in options) {
+            return if (newBool) "true" else "false"
+        }
+        if ("TRUE" in options && "FALSE" in options) {
+            return if (newBool) "TRUE" else "FALSE"
+        }
+        if ("1" in options && "0" in options) {
+            return if (newBool) "1" else "0"
+        }
+    }
+
+    // 2. Based on originalValue format
+    return when (originalValue) {
+        is String -> when (originalValue.lowercase()) {
+            "on", "off" -> if (newBool) "On" else "Off"
+            "true", "false" -> if (newBool) "true" else "false"
+            "1", "0" -> if (newBool) "1" else "0"
+            else -> newBool
+        }
+        is Int -> if (newBool) 1 else 0
+        is Long -> if (newBool) 1L else 0L
+        is Float -> if (newBool) 1f else 0f
+        is Double -> if (newBool) 1.0 else 0.0
+        else -> newBool
+    }
+}
+
+/**
+ * Check if a field name represents a switch toggle.
+ */
+private fun isSwitchName(name: String): Boolean {
+    val lower = name.lowercase()
+    return lower.contains("switch") || lower.startsWith("enable") || lower == "enabled" || lower == "on" || lower == "off"
+}
+
+/**
+ * Compare two values for equality, handling numeric and boolean type mismatches.
  * For example, 8.0 (Double) and 8 (Int) should be considered equal.
  */
 private fun valuesEqual(a: Any?, b: Any?, type: String): Boolean {
     if (a == b) return true
     if (a == null || b == null) return false
+
+    val isBoolType = type == "BOOLEAN" ||
+            a is Boolean || b is Boolean ||
+            (a.toString() in setOf("1", "0", "1.0", "0.0", "true", "false", "On", "Off") &&
+             b.toString() in setOf("1", "0", "1.0", "0.0", "true", "false", "On", "Off"))
+
+    if (isBoolType) {
+        return parseBooleanValue(a) == parseBooleanValue(b)
+    }
 
     return when (type) {
         "INT" -> {
@@ -316,6 +387,8 @@ private fun InputEditor(
     val type = definition?.type ?: guessType(input.currentValue)
     val showReset = !valuesEqual(input.currentValue, input.originalValue, type)
 
+    val isSwitch = isSwitchName(input.name) || type == "BOOLEAN" || input.currentValue is Boolean || input.originalValue is Boolean
+
     // Check for options from definition or fall back to field-name-based defaults
     val effectiveOptions = remember(definition, input.name) {
         definition?.options ?: getDefaultOptionsForField(input.name)
@@ -329,6 +402,19 @@ private fun InputEditor(
         // Editor takes available space
         Column(modifier = Modifier.weight(1f)) {
             when {
+                isSwitch -> {
+                    val boolValue = parseBooleanValue(input.currentValue)
+                    BooleanEditor(
+                        label = input.name,
+                        value = boolValue,
+                        isModified = showReset,
+                        tooltip = definition?.tooltip,
+                        onValueChange = { newBool ->
+                            val formatted = formatBooleanForInput(newBool, input.currentValue ?: input.originalValue, definition)
+                            onValueChange(formatted)
+                        }
+                    )
+                }
                 type == "ENUM" || effectiveOptions != null -> {
                     val options = effectiveOptions ?: emptyList()
                     val isImageSelector = isImageOptions(options)
@@ -350,15 +436,6 @@ private fun InputEditor(
                             onValueChange = { onValueChange(it) }
                         )
                     }
-                }
-                type == "BOOLEAN" || input.currentValue is Boolean -> {
-                    BooleanEditor(
-                        label = input.name,
-                        value = (input.currentValue as? Boolean) ?: false,
-                        isModified = showReset,
-                        tooltip = definition?.tooltip,
-                        onValueChange = { onValueChange(it) }
-                    )
                 }
                 type == "INT" -> {
                     IntEditor(
