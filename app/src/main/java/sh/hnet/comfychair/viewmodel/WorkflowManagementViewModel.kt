@@ -2,6 +2,7 @@ package sh.hnet.comfychair.viewmodel
 
 import android.content.Context
 import android.net.Uri
+import android.provider.OpenableColumns
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
@@ -192,7 +193,7 @@ class WorkflowManagementViewModel : ViewModel() {
                 }
 
                 // Validate JSON format
-                try {
+                val json = try {
                     JSONObject(jsonContent)
                 } catch (e: Exception) {
                     _events.emit(WorkflowManagementEvent.ShowToast(R.string.error_workflow_invalid_json))
@@ -203,14 +204,33 @@ class WorkflowManagementViewModel : ViewModel() {
                 // Auto-detect type as suggestion (user can override)
                 val detectedType = WorkflowManager.detectWorkflowType(jsonContent)
 
+                // Detect name and description from JSON
+                val detectedName = WorkflowJsonAnalyzer.detectWorkflowName(json)
+                val detectedDescription = WorkflowJsonAnalyzer.detectWorkflowDescription(json)
+
+                // If no name in JSON, try to get from filename
+                var finalName = detectedName
+                if (finalName.isEmpty()) {
+                    val fileName = withContext(Dispatchers.IO) {
+                        context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                            val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                            if (nameIndex != -1 && cursor.moveToFirst()) {
+                                cursor.getString(nameIndex)
+                            } else null
+                        } ?: uri.lastPathSegment
+                    }
+                    // Strip extension
+                    finalName = fileName?.substringBeforeLast('.') ?: ""
+                }
+
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
                     showImportDialog = true,
                     pendingImportJsonContent = jsonContent,
                     importSelectedType = detectedType,
                     importTypeDropdownExpanded = false,
-                    importName = "",
-                    importDescription = "",
+                    importName = ValidationUtils.truncateWorkflowName(finalName),
+                    importDescription = ValidationUtils.truncateWorkflowDescription(detectedDescription),
                     importNameError = null,
                     importDescriptionError = null
                 )

@@ -17,8 +17,22 @@ class WorkflowParser {
      * Parse workflow JSON content into a WorkflowGraph
      */
     fun parse(jsonContent: String, workflowName: String = "", workflowDescription: String = ""): WorkflowGraph {
-        DebugLogger.d(TAG, "Parsing workflow: name=$workflowName")
         val json = JSONObject(jsonContent)
+
+        // Try to detect name and description if not provided
+        val finalName = if (workflowName.isEmpty()) {
+            sh.hnet.comfychair.util.WorkflowJsonAnalyzer.detectWorkflowName(json)
+        } else {
+            workflowName
+        }
+
+        val finalDescription = if (workflowDescription.isEmpty()) {
+            sh.hnet.comfychair.util.WorkflowJsonAnalyzer.detectWorkflowDescription(json)
+        } else {
+            workflowDescription
+        }
+
+        DebugLogger.d(TAG, "Parsing workflow: name=$finalName")
 
         val nodes = mutableListOf<WorkflowNode>()
         val edges = mutableListOf<WorkflowEdge>()
@@ -160,10 +174,15 @@ class WorkflowParser {
 
         DebugLogger.d(TAG, "Parsed workflow: ${nodes.size} nodes, ${edges.size} edges, ${groups.size} groups, ${notes.size} notes, ${allTemplateVars.size} template vars, ${mappedFields.size} mapped fields")
 
+        // Prioritize output nodes (SaveImage, PreviewImage) by putting them first in the list
+        // so they are preferred by components that pick the "first" or "primary" output.
+        val outputNodeClasses = setOf("SaveImage", "PreviewImage", "VHS_VideoCombine", "SaveAnimatedPNG")
+        val sortedNodes = nodes.sortedByDescending { it.classType in outputNodeClasses }
+
         return WorkflowGraph(
-            name = workflowName,
-            description = workflowDescription,
-            nodes = nodes,
+            name = finalName,
+            description = finalDescription,
+            nodes = sortedNodes,
             edges = edges,
             groups = groups,
             notes = notes,
@@ -320,14 +339,7 @@ class WorkflowParser {
      */
     private fun formatLiteralValue(value: Any): Any {
         return when (value) {
-            is String -> {
-                // Truncate long strings
-                if (value.length > 30) {
-                    value.take(27) + "..."
-                } else {
-                    value
-                }
-            }
+            is String -> value
             is Number -> value
             is Boolean -> value
             else -> value.toString()

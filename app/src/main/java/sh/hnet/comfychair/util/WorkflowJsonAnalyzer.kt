@@ -72,6 +72,53 @@ internal object WorkflowJsonAnalyzer {
     }
 
     /**
+     * Detect a name for the workflow from the JSON content.
+     * Looks at root 'name' field, or titles of output/custom nodes.
+     */
+    fun detectWorkflowName(json: JSONObject): String {
+        // 1. Check for root name (wrapped format)
+        val rootName = json.optString("name", "")
+        if (rootName.isNotEmpty()) return rootName
+
+        val nodesJson = extractNodesObject(json)
+
+        // 2. Look for output nodes with titles
+        val outputNodeClasses = listOf("SaveImage", "PreviewImage", "VHS_VideoCombine", "SaveAnimatedPNG")
+        for (nodeId in nodesJson.keys()) {
+            val node = nodesJson.optJSONObject(nodeId) ?: continue
+            val classType = node.optString("class_type", "")
+            if (classType in outputNodeClasses) {
+                val meta = node.optJSONObject("_meta")
+                val title = meta?.optString("title", "")
+                if (!title.isNullOrEmpty() && title != classType) {
+                    return title
+                }
+            }
+        }
+
+        // 3. Fallback to any node with a custom title
+        for (nodeId in nodesJson.keys()) {
+            val node = nodesJson.optJSONObject(nodeId) ?: continue
+            val classType = node.optString("class_type", "")
+            val meta = node.optJSONObject("_meta")
+            val title = meta?.optString("title", "")
+            if (!title.isNullOrEmpty() && title != classType) {
+                return title
+            }
+        }
+
+        return ""
+    }
+
+    /**
+     * Detect a description for the workflow from the JSON content.
+     */
+    fun detectWorkflowDescription(json: JSONObject): String {
+        // Check for root description (wrapped format)
+        return json.optString("description", "")
+    }
+
+    /**
      * Extract the nodes object from workflow JSON, handling both wrapped and raw formats.
      * NOTE: This does NOT handle LiteGraph format - use isLiteGraphFormat() to detect
      * and LiteGraphConverter to convert before calling this.
