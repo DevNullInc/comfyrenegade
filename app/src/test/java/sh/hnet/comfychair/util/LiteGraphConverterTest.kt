@@ -153,8 +153,6 @@ class LiteGraphConverterTest {
                         put(10)    // drop_size
                         put("")    // wildcard
                         put(1)     // cycle
-                        put(false) // inpaint_model
-                        put(20)    // noise_mask_feather
                         put(12345) // seed
                         put("randomize") // control_after_generate (frontend only)
                         put(20)    // steps

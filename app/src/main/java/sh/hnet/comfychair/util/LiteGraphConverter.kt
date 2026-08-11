@@ -1041,7 +1041,7 @@ class LiteGraphConverter(
      */
     private fun getKnownNodeFallback(nodeType: String): List<InputDefinition>? {
         return when (nodeType) {
-            "FaceDetailer", "FaceDetailerPipe", "DetailerForEach" -> listOf(
+            "FaceDetailer", "FaceDetailerPipe", "DetailerForEach", "DetailerForEachPipe" -> listOf(
                 InputDefinition("guide_size", "FLOAT", true, 512.0),
                 InputDefinition("guide_size_for", "BOOLEAN", true, true),
                 InputDefinition("max_size", "FLOAT", true, 1024.0),
@@ -1051,8 +1051,6 @@ class LiteGraphConverter(
                 InputDefinition("drop_size", "INT", true, 10),
                 InputDefinition("wildcard", "STRING", true, ""),
                 InputDefinition("cycle", "INT", true, 1),
-                InputDefinition("inpaint_model", "BOOLEAN", true, false),
-                InputDefinition("noise_mask_feather", "INT", true, 20),
                 InputDefinition("seed", "INT", true, 0),
                 InputDefinition("steps", "INT", true, 20),
                 InputDefinition("cfg", "FLOAT", true, 8.0),

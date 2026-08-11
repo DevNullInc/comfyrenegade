@@ -1,16 +1,16 @@
 # Privacy Policy
 
 **Effective Date**: December 28, 2025
-**App**: ComfyChair
+**App**: ComfyRenegade
 **Developer**: Legal HKr
 
 ## Overview
 
-ComfyChair is an open-source Android application that provides a mobile interface for ComfyUI servers. This privacy policy explains how the app handles your data.
+ComfyRenegade is an open-source Android application that provides a mobile interface for ComfyUI servers. This privacy policy explains how the app handles your data.
 
 ## Data Collection
 
-**ComfyChair does not collect, store, or transmit any personal information to the developer or any third parties.**
+**ComfyRenegade does not collect, store, or transmit any personal information to the developer or any third parties.**
 
 ### Data Stored Locally on Your Device
 
@@ -26,18 +26,18 @@ All of this data remains on your device and is never transmitted to the develope
 
 ### Data Sent to Your ComfyUI Server
 
-When you use ComfyChair, the app communicates directly with your configured ComfyUI server. The following data is sent to your server:
+When you use ComfyRenegade, the app communicates directly with your configured ComfyUI server. The following data is sent to your server:
 
 - Text prompts for image/video generation
 - Generation parameters (dimensions, steps, seed, etc.)
 - Source images for image-to-image or image-to-video generation
 - Workflow configurations
 
-**This data is sent only to the server you configure.** ComfyChair does not route your data through any intermediary servers.
+**This data is sent only to the server you configure.** ComfyRenegade does not route your data through any intermediary servers.
 
 ## Third-Party Services
 
-ComfyChair does not integrate any third-party services such as:
+ComfyRenegade does not integrate any third-party services such as:
 
 - Analytics or tracking services
 - Advertising networks
@@ -56,7 +56,7 @@ If you use Android's backup feature, your app settings may be included in device
 
 ## Children's Privacy
 
-ComfyChair does not knowingly collect any information from children under 13 years of age.
+ComfyRenegade does not knowingly collect any information from children under 13 years of age.
 
 ## Changes to This Policy
 
@@ -69,5 +69,5 @@ https://github.com/legal-hkr/comfychair/issues
 
 ## Open Source
 
-ComfyChair is open-source software licensed under GPL-3.0. You can review the complete source code at:
+ComfyRenegade is open-source software licensed under GPL-3.0. You can review the complete source code at:
 https://github.com/legal-hkr/comfychair

@@ -1,4 +1,4 @@
-ComfyChair brings the power of ComfyUI to your Android device with a native, Material Design 3 interface. Connect to your ComfyUI server and generate AI images and videos right from your phone.
+ComfyRenegade brings the power of ComfyUI to your Android device with a native, Material Design 3 interface. Connect to your ComfyUI server and generate AI images and videos right from your phone.
 
 What you can do:
 - Generate images from text prompts with live progress updates
@@ -28,4 +28,5 @@ Requirements:
 - A running ComfyUI server (local or remote)
 - Android 13 or higher
 
-ComfyChair is free, open source (GPL-3.0), and not affiliated with the official ComfyUI project.
+ComfyRenegade is free, open source (GPL-3.0), and not affiliated with the official ComfyUI project.
+Initially forked from the ComfyChair Github repository. (https://github.com/legal-hkr/comfychair)
