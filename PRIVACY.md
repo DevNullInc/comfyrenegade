@@ -2,7 +2,7 @@
 
 **Effective Date**: December 28, 2025
 **App**: ComfyRenegade
-**Developer**: Legal HKr
+**Developer**: DevNullInc
 
 ## Overview
 
@@ -65,9 +65,9 @@ We may update this privacy policy from time to time. Any changes will be reflect
 ## Contact
 
 If you have questions about this privacy policy, please open an issue at:
-https://github.com/legal-hkr/comfychair/issues
+https://github.com/DevNullInc/comfyrenegade/issues
 
 ## Open Source
 
 ComfyRenegade is open-source software licensed under GPL-3.0. You can review the complete source code at:
-https://github.com/legal-hkr/comfychair
+https://github.com/DevNullInc/comfyrenegade

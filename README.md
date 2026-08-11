@@ -116,15 +116,17 @@ ComfyRenegade provides a streamlined mobile interface for interacting with Comfy
   - Add notes to workflows with Markdown support
   - Unified title and text editor
   - Notes displayed in the workflow graph
-- **Navigation and zoom**:
-  - Material Design 3 Expressive floating toolbar
-  - Zoom controls with percentage display
-  - Fit all / Fit width zoom options
-  - Initial drawing animation when opening workflows
+- **Navigation, zoom, and Workflow Viewer Optimization**:
+  - Stateless high-performance viewport calculator (`GraphViewportCalculator`) for smooth panning, pinch-to-zoom, and focal point tracking
+  - Material Design 3 Expressive floating toolbar with zoom percentage display
+  - Fit all, Fit width, and Fit height zoom options with scale clamping (`MIN_SCALE = 0.2f`, `MAX_SCALE = 3.0f`)
+  - Adaptive canvas layout centering focused nodes automatically when opening/closing the node attribute side-sheet
+  - Optimized Compose canvas rendering for Bezier and Hermite wire curves with animated connection selection
+  - Initial drawing animation when opening complex workflows
 - **Workflow management**:
   - Create workflows from scratch or import existing ones from ComfyUI
   - Supported formats:
-    - ComfyUI LiteGraph (import only) - native ComfyUI workflow format with subgraph support
+    - ComfyUI LiteGraph (import only) - native ComfyUI workflow format with subgraph blueprint support (such as massive-detail)
     - ComfyUI API JSON (import/export) - workflow format used by the ComfyUI API
     - ComfyRenegade JSON (import/export) - preserves field mappings and app settings
   - Dynamic workflow thumbnails showing mini graph previews
