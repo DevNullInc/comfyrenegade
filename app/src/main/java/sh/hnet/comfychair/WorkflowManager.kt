@@ -1462,6 +1462,18 @@ object WorkflowManager {
                 }
             }
 
+            // Sanitize all Lora Stack nodes and VAE connections before outputting JSON
+            sh.hnet.comfychair.util.LiteGraphConverter.sanitizeVaeConnections(nodes)
+
+            val keys = nodes.keys()
+            while (keys.hasNext()) {
+                val k = keys.next()
+                val nodeObj = nodes.optJSONObject(k)
+                if (nodeObj != null) {
+                    sh.hnet.comfychair.util.LiteGraphConverter.sanitizeLoraStackNode(nodeObj)
+                }
+            }
+
             json.toString()
         } catch (e: Exception) {
             workflowJson

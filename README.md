@@ -128,7 +128,7 @@ ComfyRenegade provides a streamlined mobile interface for interacting with Comfy
 - **Workflow management**:
   - Create workflows from scratch or import existing ones from ComfyUI
   - Supported formats:
-    - ComfyUI LiteGraph (import only) - native ComfyUI workflow format with subgraph blueprint support (such as massive-detail)
+    - ComfyUI LiteGraph (import only, Work in Progress) - native ComfyUI workflow format with subgraph blueprint support (such as massive-detail)
     - ComfyUI API JSON (import/export) - workflow format used by the ComfyUI API
     - ComfyRenegade JSON (import/export) - preserves field mappings and app settings
   - Dynamic workflow thumbnails showing mini graph previews

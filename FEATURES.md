@@ -27,6 +27,8 @@
 
 ### Intelligent Parameter & Widget Mapping
 - **Smart Jump-Matching**: Pattern- and type-aware jump-matching for sampler algorithm names (`dpmpp_2m`, `euler`), scheduler names (`karras`, `normal`), and large seed values (`>99999`).
+- **Multi-Widget Frontend Skips**: Automatically detects and skips extra frontend mode/preset dropdown string widgets (such as `"standard"` or `"model_only"` on `Lora Stack [Eclipse]`) when the expected node parameter is numeric (`lora_count` / `INT`), preventing string values from bleeding into numeric inputs.
+
 ### Workflow Viewer & Canvas Optimization
 - **Stateless Viewport Calculator**: High-performance, pure functional viewport transform calculations (`GraphViewportCalculator`) for smooth panning, pinch-to-zoom, and focal point tracking.
 - **Adaptive Canvas Auto-Fitting**: Smart `fitToScreen`, `fitToWidth`, and `fitToHeight` viewport operations with strict scale clamping (`MIN_SCALE = 0.2f`, `MAX_SCALE = 3.0f`, `MAX_FIT_SCALE = 1.5f`) preventing over-zooming on small graphs.
@@ -36,9 +38,9 @@
 
 ---
 
-## 2. Full Workflow Import & API Compatibility
+## 2. Full Workflow Import & API Compatibility (Work in Progress)
 
-### Multi-Format Import Support
+### Multi-Format Import Support (WIP)
 - **ComfyUI LiteGraph (`.json`)**: Import native ComfyUI web canvas workflows directly, including node positions, groups, notes, and subgraphs.
 - **ComfyUI API JSON (`.json`)**: Import and export server API prompt payloads (both flat node dictionaries and wrapped JSON format).
 - **ComfyRenegade JSON (`.json`)**: Native format preserving field mappings, node attribute edits, UI placeholder mappings (`{{positive_prompt}}`, `{{seed}}`, `{{vae}}`), and per-workflow settings.

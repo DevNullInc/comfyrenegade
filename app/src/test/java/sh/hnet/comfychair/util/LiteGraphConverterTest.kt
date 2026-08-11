@@ -63,12 +63,12 @@ class LiteGraphConverterTest {
         val node10 = nodes.getJSONObject("10")
         val inputs = node10.getJSONObject("inputs")
 
-        assertEquals("Off", inputs.getString("switch_1"))
+        org.junit.Assert.assertFalse(inputs.getBoolean("switch_1"))
         assertEquals("anima\\R3.safetensors", inputs.getString("lora_name_1"))
         assertEquals(1.0, inputs.getDouble("model_weight_1"), 0.001)
         assertEquals(1.0, inputs.getDouble("clip_weight_1"), 0.001)
 
-        assertEquals("Off", inputs.getString("switch_2"))
+        org.junit.Assert.assertFalse(inputs.getBoolean("switch_2"))
         assertEquals("anima\\le.safetensors", inputs.getString("lora_name_2"))
         assertEquals(1.01, inputs.getDouble("model_weight_2"), 0.001)
         assertEquals(1.0, inputs.getDouble("clip_weight_2"), 0.001)
@@ -276,9 +276,14 @@ class LiteGraphConverterTest {
         // 1. Verify Lora Stack [Eclipse] node #24
         val node24 = nodes.getJSONObject("24")
         val node24Inputs = node24.getJSONObject("inputs")
+        assertEquals("standard", node24Inputs.getString("mode"))
+        assertEquals(10, node24Inputs.getInt("lora_count"))
+        org.junit.Assert.assertTrue(node24Inputs.getBoolean("switch_1"))
+        assertEquals("anima\\fucked_sensless_Anima_epoch_8.safetensors", node24Inputs.getString("lora_name_1"))
         org.junit.Assert.assertFalse(node24Inputs.getBoolean("switch_2"))
         assertEquals("anima\\R3alB3auty_ANIMA.safetensors", node24Inputs.getString("lora_name_2"))
-        assertEquals(1.0, node24Inputs.getDouble("model_weight_2"), 0.001)
+        org.junit.Assert.assertTrue(node24Inputs.getBoolean("switch_3"))
+        assertEquals("anima\\lenovo_ultrareal_anima_base1.safetensors", node24Inputs.getString("lora_name_3"))
 
         // 2. Verify VAEDecode node #46 has connection link, not string filename
         val node46 = nodes.getJSONObject("46")

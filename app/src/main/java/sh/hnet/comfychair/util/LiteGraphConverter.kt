@@ -107,6 +107,126 @@ class LiteGraphConverter(
     companion object {
         private const val TAG = "LiteGraphConverter"
 
+        /**
+         * Sanitizes a Lora Stack node object by verifying and restoring exact data types
+         * for lora_count, switches, lora names, and weights. Fixes index-shifted or corrupted JSON inputs.
+         */
+        fun sanitizeLoraStackNode(nodeObj: JSONObject) {
+            val classType = nodeObj.optString("class_type", "")
+            val isLoraStack = classType.contains("Lora", ignoreCase = true) && classType.contains("Stack", ignoreCase = true)
+            if (!isLoraStack) return
+
+            val inputsObj = nodeObj.optJSONObject("inputs") ?: return
+
+            // Fix lora_count if it is a non-numeric string like "standard"
+            val loraCountVal = inputsObj.opt("lora_count")
+            if (loraCountVal is String) {
+                val countInt = loraCountVal.toIntOrNull()
+                inputsObj.put("lora_count", countInt ?: 10)
+            }
+
+            for (i in 1..10) {
+                val weightKey = "model_weight_$i"
+                val clipWeightKey = "clip_weight_$i"
+                val switchKey = "switch_$i"
+                val nameKey = "lora_name_$i"
+
+                // Fix model_weight if it is a string (e.g. filename from shifted indices)
+                val modelW = inputsObj.opt(weightKey)
+                if (modelW is String) {
+                    val parsedFloat = modelW.toDoubleOrNull()
+                    if (parsedFloat != null) {
+                        inputsObj.put(weightKey, parsedFloat)
+                    } else {
+                        val curName = inputsObj.opt(nameKey)
+                        if (curName == null || curName is Boolean || curName == JSONObject.NULL) {
+                            inputsObj.put(nameKey, modelW)
+                        }
+                        inputsObj.put(weightKey, 1.0)
+                    }
+                }
+
+                // Fix clip_weight if it is a string
+                val clipW = inputsObj.opt(clipWeightKey)
+                if (clipW is String) {
+                    val parsedFloat = clipW.toDoubleOrNull()
+                    inputsObj.put(clipWeightKey, parsedFloat ?: 1.0)
+                }
+
+                // Fix switch if it is integer 1/0 or string
+                val switchVal = inputsObj.opt(switchKey)
+                if (switchVal is Number) {
+                    inputsObj.put(switchKey, switchVal.toInt() != 0)
+                } else if (switchVal is String) {
+                    inputsObj.put(switchKey, switchVal.lowercase() in setOf("true", "1", "on", "yes"))
+                }
+            }
+        }
+
+        /**
+         * Sanitizes VAE input connections across all nodes in the API graph.
+         * Replaces primitive string filenames on decode/detailer nodes with valid link tuples to VAELoader nodes.
+         */
+        fun sanitizeVaeConnections(apiNodes: JSONObject) {
+            val vaeLoaders = mutableMapOf<String, String>()
+            val nodeKeys = apiNodes.keys().asSequence().toList()
+
+            for (nodeId in nodeKeys) {
+                val nodeObj = apiNodes.optJSONObject(nodeId) ?: continue
+                val classType = nodeObj.optString("class_type", "")
+                val inputs = nodeObj.optJSONObject("inputs") ?: continue
+
+                if (classType == "VAELoader" || classType == "VAE Loader" || classType.contains("VAELoader", ignoreCase = true)) {
+                    val vaeName = inputs.optString("vae_name", "")
+                    vaeLoaders[nodeId] = vaeName
+                }
+            }
+
+            if (vaeLoaders.isEmpty()) return
+
+            for (nodeId in nodeKeys) {
+                val nodeObj = apiNodes.optJSONObject(nodeId) ?: continue
+                val classType = nodeObj.optString("class_type", "")
+                val inputsObj = nodeObj.optJSONObject("inputs") ?: continue
+
+                // Exclude specialty nodes like Lotus Depth estimators that manage their own internal VAE models
+                if (classType.contains("Lotus", ignoreCase = true) || (classType.contains("Depth", ignoreCase = true) && !classType.contains("Decode"))) {
+                    continue
+                }
+
+                val isDecodeOrDetailer = classType.contains("Decode", ignoreCase = true) ||
+                        classType.contains("Detailer", ignoreCase = true) ||
+                        classType == "VAEDecode"
+
+                if (isDecodeOrDetailer && inputsObj.has("vae")) {
+                    val vaeVal = inputsObj.opt("vae")
+                    val isLinkTuple = vaeVal is JSONArray && vaeVal.length() == 2 &&
+                            vaeVal.optString(0, "") in nodeKeys && vaeVal.optInt(1, -1) >= 0
+
+                    if (!isLinkTuple) {
+                        val targetFilename = when (vaeVal) {
+                            is String -> vaeVal
+                            is JSONArray -> if (vaeVal.length() > 0) vaeVal.optString(0, "") else ""
+                            else -> ""
+                        }
+                        var matchedLoaderId: String? = null
+                        if (targetFilename.isNotEmpty()) {
+                            matchedLoaderId = vaeLoaders.entries.firstOrNull { (_, loadedName) ->
+                                loadedName.contains(targetFilename, ignoreCase = true) ||
+                                        targetFilename.contains(loadedName, ignoreCase = true)
+                            }?.key
+                        }
+                        val loaderIdToUse = matchedLoaderId ?: vaeLoaders.keys.first()
+                        inputsObj.put("vae", JSONArray().apply {
+                            put(loaderIdToUse)
+                            put(0)
+                        })
+                        DebugLogger.d(TAG, "Sanitized VAE connection on node #$nodeId ($classType) -> link to VAELoader #$loaderIdToUse")
+                    }
+                }
+            }
+        }
+
         // Note node types that should be extracted to notes array
         private val NOTE_NODE_TYPES = setOf("Note", "MarkdownNote", "workflow/note")
 
@@ -359,6 +479,9 @@ class LiteGraphConverter(
     private fun repairMissingConnections(apiNodes: JSONObject) {
         val nodeKeys = apiNodes.keys().asSequence().toList().toSet()
 
+        // Sanitize all VAE connections across all nodes
+        sanitizeVaeConnections(apiNodes)
+
         // Collect all VAE loader nodes and global seed values
         val vaeLoaders = mutableMapOf<String, String>()
         var primarySeedValue: Long? = null
@@ -390,6 +513,10 @@ class LiteGraphConverter(
         for (nodeId in nodeKeys) {
             val nodeObj = apiNodes.optJSONObject(nodeId) ?: continue
             val classType = nodeObj.optString("class_type", "")
+            
+            // Auto-heal Lora Stack nodes from type misalignments or shifted keys
+            sanitizeLoraStackNode(nodeObj)
+
             val inputsObj = nodeObj.optJSONObject("inputs") ?: JSONObject().also { nodeObj.put("inputs", it) }
             val inputKeys = inputsObj.keys().asSequence().toList()
 
@@ -960,6 +1087,15 @@ class LiteGraphConverter(
                 continue
             }
 
+            // If current input expects numeric (INT/FLOAT), but current widget value is a non-numeric string,
+            // skip the extra frontend string widget in widgets_values (e.g. extra "standard" preset dropdown on Lora Stack)
+            val isNumericInput = inputDef.type == "INT" || inputDef.type == "FLOAT" || inputDef.name in COUNT_WIDGET_NAMES
+            if (isNumericInput && value is String && value.toIntOrNull() == null && value.toFloatOrNull() == null) {
+                DebugLogger.d(TAG, "Node #$nodeId ($nodeType): skipping extra frontend string widget '$value' for numeric input '${inputDef.name}'")
+                widgetIndex++
+                continue
+            }
+
             // Map the value
             if (value != null && value != JSONObject.NULL) {
                 inputs.put(inputDef.name, value)
@@ -1179,8 +1315,10 @@ class LiteGraphConverter(
             )
             nodeType.contains("Lora", ignoreCase = true) && nodeType.contains("Stack", ignoreCase = true) -> {
                 val list = mutableListOf<InputDefinition>()
+                list.add(InputDefinition("mode", "ENUM", true, options = listOf("standard", "model_only", "simple")))
+                list.add(InputDefinition("lora_count", "INT", true, 3))
                 for (i in 1..10) {
-                    list.add(InputDefinition("switch_$i", "ENUM", true, options = listOf("On", "Off")))
+                    list.add(InputDefinition("switch_$i", "BOOLEAN", true, true))
                     list.add(InputDefinition("lora_name_$i", "ENUM", true, options = listOf("None")))
                     list.add(InputDefinition("model_weight_$i", "FLOAT", true, 1.0))
                     list.add(InputDefinition("clip_weight_$i", "FLOAT", true, 1.0))
