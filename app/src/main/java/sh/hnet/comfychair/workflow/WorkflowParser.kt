@@ -11,6 +11,21 @@ class WorkflowParser {
 
     companion object {
         private const val TAG = "WorkflowParser"
+
+        /**
+         * Check if an input name belongs to a connection slot (e.g. lora_stack, model, image).
+         * Used to prevent serializing primitive literal values into connection inputs.
+         */
+        fun isConnectionInputName(inputName: String): Boolean {
+            val lower = inputName.lowercase()
+            return lower in setOf(
+                "model", "clip", "vae", "positive", "negative", "conditioning",
+                "latent", "latent_image", "image", "images", "mask", "sigmas",
+                "guides", "guider", "sampler", "lora_stack", "control_net_stack",
+                "model_stack", "cnet_stack", "sam_model_opt", "segm_detector_opt",
+                "bbox_detector", "detailer_hook"
+            ) || lower.endsWith("_stack")
+        }
     }
 
     /**
@@ -324,14 +339,44 @@ class WorkflowParser {
                     } catch (e: Exception) {
                         // If parsing fails, treat as literal
                         DebugLogger.w(TAG, "Failed to parse connection for input '$key': ${e.message}")
-                        InputValue.Literal(value.toString())
+                        InputValue.Literal(sanitizeInputValue(key, value.toString()))
                     }
                 }
-                else -> InputValue.Literal(formatLiteralValue(value))
+                isConnectionInputName(key) -> {
+                    // Primitive value on a connection slot (e.g. "lora_stack": 10 from bad conversion)
+                    // Treat as UnconnectedSlot so it's not serialized as literal to ComfyUI
+                    InputValue.UnconnectedSlot(key)
+                }
+                else -> InputValue.Literal(sanitizeInputValue(key, value))
             }
         }
 
         return result
+    }
+
+    /**
+     * Format and sanitize a literal value for display, repairing broken Lora stack node values.
+     */
+    private fun sanitizeInputValue(key: String, value: Any): Any {
+        val formatted = formatLiteralValue(value)
+        val keyLower = key.lowercase()
+        val strVal = formatted.toString()
+
+        // Fix lora_name showing boolean or switch values ("false", "true", "Off", "On")
+        if (keyLower.startsWith("lora_name") || keyLower == "lora") {
+            if (value is Boolean || strVal.lowercase() in setOf("false", "true", "off", "on")) {
+                return "None"
+            }
+        }
+
+        // Fix model_weight / clip_weight showing string lora names (e.g. "anima\R3...") or booleans
+        if (keyLower.startsWith("model_weight") || keyLower.startsWith("clip_weight") || keyLower.contains("weight")) {
+            if (value is Boolean || (value is String && strVal.toDoubleOrNull() == null)) {
+                return 1.0
+            }
+        }
+
+        return formatted
     }
 
     /**

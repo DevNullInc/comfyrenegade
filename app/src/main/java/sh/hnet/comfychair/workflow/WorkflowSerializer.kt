@@ -258,8 +258,10 @@ class WorkflowSerializer {
         for ((inputName, inputValue) in node.inputs) {
             when (inputValue) {
                 is InputValue.Literal -> {
-                    // Serialize literal value
-                    inputsJson.put(inputName, serializeLiteralValue(inputValue.value))
+                    // Skip literal values on connection slots (e.g. lora_stack) so backend gets None
+                    if (!WorkflowParser.isConnectionInputName(inputName)) {
+                        inputsJson.put(inputName, serializeLiteralValue(inputValue.value))
+                    }
                 }
                 is InputValue.Connection -> {
                     // Serialize connection as [nodeId, outputIndex]

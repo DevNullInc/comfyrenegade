@@ -168,8 +168,8 @@ class WorkflowEditorViewModel : ViewModel() {
                 // Parse the workflow
                 var graph = parser.parse(jsonContent, name, description)
 
-                // Populate node outputs from registry
-                graph = populateNodeOutputs(graph)
+                // Populate node inputs and outputs from registry
+                graph = populateNodeInputsAndOutputs(graph)
 
                 // Layout the graph
                 graph = layoutEngine.layoutGraph(graph)
@@ -238,8 +238,8 @@ class WorkflowEditorViewModel : ViewModel() {
                 // Parse the workflow
                 var graph = parser.parse(jsonContent, name, description)
 
-                // Populate node outputs from registry
-                graph = populateNodeOutputs(graph)
+                // Populate node inputs and outputs from registry
+                graph = populateNodeInputsAndOutputs(graph)
 
                 // Layout the graph
                 graph = layoutEngine.layoutGraph(graph)
@@ -362,7 +362,7 @@ class WorkflowEditorViewModel : ViewModel() {
 
                 // Parse the workflow
                 var graph = parser.parse(workflow.jsonContent, workflow.name, workflow.description)
-                graph = populateNodeOutputs(graph)
+                graph = populateNodeInputsAndOutputs(graph)
                 graph = layoutEngine.layoutGraph(graph)
                 graph = resolveEdgeTypes(graph)
                 val bounds = layoutEngine.calculateBounds(graph)
@@ -1179,17 +1179,51 @@ class WorkflowEditorViewModel : ViewModel() {
      * Populate node outputs using the node type registry.
      * Adds output types to each node based on its class type.
      */
-    private fun populateNodeOutputs(graph: WorkflowGraph): WorkflowGraph {
+    private fun populateNodeInputsAndOutputs(graph: WorkflowGraph): WorkflowGraph {
         if (!nodeTypeRegistry.isPopulated()) {
             return graph
         }
 
-        val nodesWithOutputs = graph.nodes.map { node ->
+        val nodesWithFullData = graph.nodes.map { node ->
             val definition = nodeTypeRegistry.getNodeDefinition(node.classType)
-            val outputs = definition?.outputs ?: emptyList()
-            node.copy(outputs = outputs)
+            if (definition == null) {
+                node
+            } else {
+                val outputs = definition.outputs
+                val mergedInputs = linkedMapOf<String, InputValue>()
+
+                // First pass: add all literal (editable) inputs from definition
+                definition.inputs.forEach { inputDef ->
+                    val isConnectionType = inputDef.type !in listOf("INT", "FLOAT", "STRING", "BOOLEAN", "ENUM")
+                    if (!isConnectionType && !inputDef.forceInput) {
+                        val existing = node.inputs[inputDef.name]
+                        mergedInputs[inputDef.name] = existing ?: InputValue.Literal(inputDef.getEffectiveDefault())
+                    }
+                }
+
+                // Second pass: add all connection-type inputs from definition
+                definition.inputs.forEach { inputDef ->
+                    val isConnectionType = inputDef.type !in listOf("INT", "FLOAT", "STRING", "BOOLEAN", "ENUM")
+                    if (isConnectionType || inputDef.forceInput) {
+                        val existing = node.inputs[inputDef.name]
+                        mergedInputs[inputDef.name] = existing ?: InputValue.UnconnectedSlot(inputDef.type)
+                    }
+                }
+
+                // Add any other inputs that exist in the node.inputs but are not in definition.inputs
+                node.inputs.forEach { (name, value) ->
+                    if (!mergedInputs.containsKey(name)) {
+                        mergedInputs[name] = value
+                    }
+                }
+
+                node.copy(
+                    inputs = sortInputsForLayout(mergedInputs),
+                    outputs = outputs
+                )
+            }
         }
-        return graph.copy(nodes = nodesWithOutputs)
+        return graph.copy(nodes = nodesWithFullData)
     }
 
     /**
@@ -1936,7 +1970,7 @@ class WorkflowEditorViewModel : ViewModel() {
 
         // Parse and layout the workflow
         var graph = parser.parse(workflow.jsonContent, workflow.name, workflow.description)
-        graph = populateNodeOutputs(graph)
+        graph = populateNodeInputsAndOutputs(graph)
         graph = layoutEngine.layoutGraph(graph)
         graph = resolveEdgeTypes(graph)
         val bounds = layoutEngine.calculateBounds(graph)

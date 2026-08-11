@@ -121,6 +121,9 @@ class LiteGraphConverter(
 
         // Input names that may have a control widget following them
         private val SEED_INPUT_NAMES = setOf("seed", "noise_seed")
+
+        // Input names that represent widget count / control widgets
+        private val COUNT_WIDGET_NAMES = setOf("lora_count", "input_count", "count", "num_loras", "num_inputs")
     }
 
     /**
@@ -790,6 +793,13 @@ class LiteGraphConverter(
         val editableInputs = inputDefs.filter { !it.forceInput && !isConnectionOnlyType(it.type) }
 
         var widgetIndex = 0
+
+        // Check if index 0 contains a leading frontend count widget (e.g., lora_count) not in editableInputs
+        if (shouldSkipLeadingWidget(nodeType, widgetValues, editableInputs)) {
+            DebugLogger.d(TAG, "Node #$nodeId ($nodeType): skipping leading frontend count widget '${widgetValues.opt(0)}'")
+            widgetIndex++
+        }
+
         for (inputDef in editableInputs) {
             if (widgetIndex >= widgetValues.length()) break
 
@@ -821,16 +831,80 @@ class LiteGraphConverter(
     }
 
     /**
-     * Check if an input type is connection-only (not a widget)
+     * Check if the first widget in widgetValues is a leading frontend count/control widget
+     * (such as lora_count) that is not included in the server's /object_info input definitions.
+     */
+    private fun shouldSkipLeadingWidget(
+        nodeType: String,
+        widgetValues: JSONArray,
+        editableInputs: List<InputDefinition>
+    ): Boolean {
+        if (widgetValues.length() == 0 || editableInputs.isEmpty()) return false
+
+        val firstInputName = editableInputs.first().name
+
+        // If editableInputs already has a count input at index 0, do not skip it
+        if (firstInputName in COUNT_WIDGET_NAMES) {
+            return false
+        }
+
+        val firstWidgetValue = widgetValues.opt(0) ?: return false
+
+        // Check if node is a Lora stack node or general stack node
+        val isStackNode = nodeType.contains("LoraStack", ignoreCase = true) ||
+                nodeType.contains("LoRAStack", ignoreCase = true) ||
+                nodeType.contains("Lora Stack", ignoreCase = true) ||
+                nodeType.contains("LoRA Stack", ignoreCase = true) ||
+                nodeType.contains("CR_LoRA", ignoreCase = true) ||
+                nodeType.contains("CR_MultiLoRA", ignoreCase = true) ||
+                (nodeType.startsWith("CR_") && nodeType.contains("Stack", ignoreCase = true)) ||
+                nodeType.contains("Stack", ignoreCase = true)
+
+        // Check if first widget value is a count number (e.g. Int or numeric String)
+        val isCountValue = when (firstWidgetValue) {
+            is Number -> true
+            is String -> firstWidgetValue.toIntOrNull() != null
+            else -> false
+        }
+
+        // Check if first input in definition expects a switch or lora name (not a count)
+        val firstInputIsSwitchOrLora = firstInputName.startsWith("switch") ||
+                firstInputName.startsWith("lora_name") ||
+                firstInputName.startsWith("lora_") ||
+                firstInputName.startsWith("model_weight") ||
+                firstInputName.startsWith("clip_weight")
+
+        if (isStackNode && isCountValue && firstInputIsSwitchOrLora) {
+            return true
+        }
+
+        // Check if second widget value matches first input definition while first widget is a count
+        if (widgetValues.length() > 1 && isCountValue) {
+            val secondWidgetValue = widgetValues.opt(1)
+            val firstInputDef = editableInputs.first()
+            val isSecondValueMatchingFirstInput = when (firstInputDef.type) {
+                "ENUM" -> {
+                    val opts = firstInputDef.options ?: emptyList()
+                    secondWidgetValue is String && (opts.isEmpty() || secondWidgetValue in opts || secondWidgetValue in setOf("On", "Off", "true", "false"))
+                }
+                "BOOLEAN" -> secondWidgetValue is Boolean || secondWidgetValue in setOf("true", "false", "On", "Off")
+                else -> false
+            }
+            if (isSecondValueMatchingFirstInput) {
+                return true
+            }
+        }
+
+        return false
+    }
+
+    /**
+     * Check if an input type is connection-only (not a primitive widget).
+     * Primitive widget types are INT, FLOAT, STRING, BOOLEAN, ENUM, COMBO.
+     * All other types (MODEL, CLIP, VAE, LORA_STACK, SAM_MODEL, etc.) are connection types.
      */
     private fun isConnectionOnlyType(type: String): Boolean {
-        // Common connection-only types (not widgets)
-        return type in setOf(
-            "MODEL", "CLIP", "VAE", "CONDITIONING", "LATENT", "IMAGE",
-            "MASK", "CONTROL_NET", "STYLE_MODEL", "CLIP_VISION", "CLIP_VISION_OUTPUT",
-            "GLIGEN", "UPSCALE_MODEL", "SAMPLER", "SIGMAS", "NOISE", "GUIDER",
-            "*"  // Wildcard type
-        )
+        return type !in setOf("INT", "FLOAT", "STRING", "BOOLEAN", "ENUM", "COMBO")
     }
 
     /**
