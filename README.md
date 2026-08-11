@@ -4,6 +4,8 @@ An unofficial, native Android UI for [ComfyUI](https://github.com/comfyanonymous
 
 **Current version**: v0.0.1-alpha
 
+**Feature list**: [FEATURES.md](FEATURES.md)
+
 [<img src="https://raw.githubusercontent.com/rubenpgrady/get-it-on-github/refs/heads/main/get-it-on-github.png"
     alt="Get it on GitHub"
     height="80">](https://github.com/DevNullInc/comfyrenegade/releases/latest)
@@ -12,7 +14,7 @@ An unofficial, native Android UI for [ComfyUI](https://github.com/comfyanonymous
 
 ComfyRenegade provides a streamlined mobile interface for interacting with ComfyUI servers, allowing you to generate and manage AI images and videos directly from your Android device. The app communicates with your ComfyUI server via its API, bringing the power of node-based AI generation to your mobile workflow.
 
-**Note**: This is an independent, community-developed project and is not officially affiliated with or endorsed by the ComfyUI team.
+**Note**: This is an independent, single-developer project and is not officially affiliated with or endorsed by the ComfyUI team or the original developer of ComfyChair.
 
 ## Screenshots
 
