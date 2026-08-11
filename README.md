@@ -235,3 +235,4 @@ This project follows standard Android development practices:
 ## Acknowledgments
 
 - [ComfyUI](https://github.com/comfyanonymous/ComfyUI) - The powerful node-based UI this app interfaces with
+- OpenDyslexic fonts – bundled OpenDyslexic for accessibility. Attribution: OpenDyslexic (https://opendyslexic.org/) licenced under SIL Open Font License (http://scripts.sil.org/OFL) and Antijingoist fork (https://forge.hackers.town/antijingoist/opendyslexic).
