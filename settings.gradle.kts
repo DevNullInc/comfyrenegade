@@ -23,6 +23,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "ComfyChair"
+rootProject.name = "ComfyRenegade"
 include(":app")
  

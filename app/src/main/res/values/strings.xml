@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name" translatable="false">ComfyChair</string>
+    <string name="app_name" translatable="false">ComfyRenegade</string>
 
     <!-- Login screen strings -->
     <string name="hint_hostname">Hostname</string>

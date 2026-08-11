@@ -840,7 +840,7 @@ class ComfyUIClient(
 
         // Parse the workflow JSON to extract just the nodes section
         val workflowObject = JSONObject(workflowJson)
-        val nodesObject = workflowObject.optJSONObject("nodes")
+        val nodesObject = workflowObject.optJSONObject("nodes") ?: workflowObject
 
         // Create the prompt request
         // The client_id here must match the clientId used in the WebSocket connection

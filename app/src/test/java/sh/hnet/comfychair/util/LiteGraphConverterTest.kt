@@ -255,4 +255,54 @@ class LiteGraphConverterTest {
             org.junit.Assert.assertFalse(inputs.opt("vae") is String)
         }
     }
+
+    @Test
+    fun testWikkedAnimaV4FullWorkflowConversion() {
+        val file = java.io.File("../Example workflows/Wikked Anima V4-full.json")
+        if (!file.exists()) {
+            println("File does not exist: ${file.absolutePath}")
+            return
+        }
+
+        val jsonString = file.readText()
+        val liteGraphJson = JSONObject(jsonString)
+
+        val converter = LiteGraphConverter { null }
+        val result = converter.convert(liteGraphJson)
+
+        val apiJson = JSONObject(result.jsonContent)
+        val nodes = apiJson.getJSONObject("nodes")
+
+        // 1. Verify Lora Stack [Eclipse] node #24
+        val node24 = nodes.getJSONObject("24")
+        val node24Inputs = node24.getJSONObject("inputs")
+        org.junit.Assert.assertFalse(node24Inputs.getBoolean("switch_2"))
+        assertEquals("anima\\R3alB3auty_ANIMA.safetensors", node24Inputs.getString("lora_name_2"))
+        assertEquals(1.0, node24Inputs.getDouble("model_weight_2"), 0.001)
+
+        // 2. Verify VAEDecode node #46 has connection link, not string filename
+        val node46 = nodes.getJSONObject("46")
+        val node46Inputs = node46.getJSONObject("inputs")
+        val vaeConn = node46Inputs.getJSONArray("vae")
+        assertEquals("49", vaeConn.getString(0))
+        assertEquals(0, vaeConn.getInt(1))
+
+        // 3. Verify all FaceDetailer nodes inside subgraph #2 have required execution parameters
+        val keys = nodes.keys()
+        var faceDetailerCount = 0
+        while (keys.hasNext()) {
+            val key = keys.next()
+            val nodeObj = nodes.getJSONObject(key)
+            if (nodeObj.optString("class_type") == "FaceDetailer") {
+                faceDetailerCount++
+                val nodeInputs = nodeObj.getJSONObject("inputs")
+                org.junit.Assert.assertTrue(nodeInputs.has("steps"))
+                org.junit.Assert.assertTrue(nodeInputs.has("cfg"))
+                org.junit.Assert.assertTrue(nodeInputs.has("sampler_name"))
+                org.junit.Assert.assertTrue(nodeInputs.has("scheduler"))
+                org.junit.Assert.assertTrue(nodeInputs.has("denoise"))
+            }
+        }
+        org.junit.Assert.assertTrue("Should find FaceDetailer nodes", faceDetailerCount > 0)
+    }
 }

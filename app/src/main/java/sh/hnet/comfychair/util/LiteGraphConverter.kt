@@ -125,6 +125,20 @@ class LiteGraphConverter(
 
         // Input names that represent widget count / control widgets
         private val COUNT_WIDGET_NAMES = setOf("lora_count", "input_count", "count", "num_loras", "num_inputs")
+
+        // Known sampler names for smart widget matching
+        private val SAMPLER_NAMES = setOf(
+            "euler", "euler_ancestral", "heun", "heunpp2", "dpm_2", "dpm_2_ancestral",
+            "lms", "dpm_fast", "dpm_adaptive", "dpmpp_2s_ancestral", "dpmpp_sde",
+            "dpmpp_sde_gpu", "dpmpp_2m", "dpmpp_2m_sde", "dpmpp_2m_sde_gpu",
+            "dpmpp_3m_sde", "dpmpp_3m_sde_gpu", "ddim", "uni_pc", "uni_pc_bh2",
+            "lcm", "ddpm", "ipndm", "ipndm_v", "deis"
+        )
+
+        // Known scheduler names for smart widget matching
+        private val SCHEDULER_NAMES = setOf(
+            "normal", "karras", "exponential", "sgm_uniform", "simple", "ddim_uniform", "beta"
+        )
     }
 
     /**
@@ -266,6 +280,9 @@ class LiteGraphConverter(
             remapSubgraphConnections(apiNodes, linkMap, subgraphOutputMappings)
         }
 
+        // Third pass: self-healing repair for missing/unconnected VAE links on VAEDecode and FaceDetailer
+        repairMissingConnections(apiNodes)
+
         // Convert groups
         val groupsArray = liteGraphJson.optJSONArray("groups")
         val groups = convertGroups(groupsArray, nodePositions)
@@ -327,6 +344,98 @@ class LiteGraphConverter(
                         }
                         inputs.put(inputName, newConnection)
                         DebugLogger.d(TAG, "Remapped connection: $srcNodeIdStr:$srcSlot -> ${mapping.first}:${mapping.second}")
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Post-processing repair pass to:
+     * 1. Ensure connection slots (such as vae) on key execution nodes (VAEDecode, FaceDetailer) are valid node links.
+     * 2. Clean up invalid non-connection primitive values (e.g. lora_stack: 1) assigned to connection slots.
+     * 3. Resolve dangling seed links (pointing to non-existent internal node IDs like 5718) to direct seed integers.
+     */
+    private fun repairMissingConnections(apiNodes: JSONObject) {
+        val nodeKeys = apiNodes.keys().asSequence().toList().toSet()
+
+        // Collect all VAE loader nodes and global seed values
+        val vaeLoaders = mutableMapOf<String, String>()
+        var primarySeedValue: Long? = null
+        var fallbackSeedValue: Long? = null
+
+        for (nodeId in nodeKeys) {
+            val nodeObj = apiNodes.optJSONObject(nodeId) ?: continue
+            val classType = nodeObj.optString("class_type", "")
+            val inputsObj = nodeObj.optJSONObject("inputs") ?: continue
+
+            if (classType == "VAELoader" || classType == "VAE Loader" || classType.contains("VAELoader")) {
+                val vaeName = inputsObj.optString("vae_name", "")
+                vaeLoaders[nodeId] = vaeName
+            } else if (classType == "ttN seed" || classType.contains("seed", ignoreCase = true)) {
+                val seedVal = inputsObj.optLong("seed", -1L)
+                if (seedVal >= 0) {
+                    primarySeedValue = seedVal
+                }
+            } else if (classType.contains("KSampler", ignoreCase = true) || classType.contains("Sampler", ignoreCase = true)) {
+                val seedVal = inputsObj.optLong("seed", -1L)
+                if (seedVal >= 0) {
+                    fallbackSeedValue = seedVal
+                }
+            }
+        }
+
+        val globalSeedValue = primarySeedValue ?: fallbackSeedValue ?: 0L
+
+        for (nodeId in nodeKeys) {
+            val nodeObj = apiNodes.optJSONObject(nodeId) ?: continue
+            val classType = nodeObj.optString("class_type", "")
+            val inputsObj = nodeObj.optJSONObject("inputs") ?: JSONObject().also { nodeObj.put("inputs", it) }
+            val inputKeys = inputsObj.keys().asSequence().toList()
+
+            for (inputKey in inputKeys) {
+                val rawVal = inputsObj.opt(inputKey)
+
+                if (WorkflowParser.isConnectionInputName(inputKey)) {
+                    val isValidConnection = rawVal is JSONArray && rawVal.length() == 2 &&
+                            rawVal.optString(0, "") in nodeKeys && rawVal.optInt(1, -1) >= 0
+
+                    if (!isValidConnection) {
+                        if (inputKey == "vae" && vaeLoaders.isNotEmpty() &&
+                            (classType == "VAEDecode" || classType.contains("Detailer"))) {
+                            val targetFilename = when (rawVal) {
+                                is String -> rawVal
+                                is JSONArray -> if (rawVal.length() > 0) rawVal.optString(0, "") else ""
+                                else -> ""
+                            }
+                            var matchedLoaderId: String? = null
+                            if (targetFilename.isNotEmpty()) {
+                                matchedLoaderId = vaeLoaders.entries.firstOrNull { (_, loadedName) ->
+                                    loadedName.contains(targetFilename, ignoreCase = true) ||
+                                            targetFilename.contains(loadedName, ignoreCase = true)
+                                }?.key
+                            }
+                            val targetLoaderId = matchedLoaderId ?: vaeLoaders.keys.first()
+                            inputsObj.put("vae", JSONArray().apply {
+                                put(targetLoaderId)
+                                put(0)
+                            })
+                            DebugLogger.d(TAG, "Repaired VAE connection on node #$nodeId ($classType) -> connecting to VAELoader #$targetLoaderId")
+                        } else {
+                            // Remove invalid primitive or dangling connection slot (e.g. lora_stack: 1)
+                            inputsObj.remove(inputKey)
+                            DebugLogger.d(TAG, "Removed invalid connection slot '$inputKey' from node #$nodeId ($classType)")
+                        }
+                    }
+                } else if (inputKey == "seed") {
+                    // Resolve dangling seed connections pointing to missing node IDs
+                    if (rawVal is JSONArray && rawVal.length() == 2) {
+                        val targetNodeId = rawVal.optString(0, "")
+                        if (targetNodeId !in nodeKeys) {
+                            val seedToUse = globalSeedValue ?: 0L
+                            inputsObj.put("seed", seedToUse)
+                            DebugLogger.d(TAG, "Repaired dangling seed connection on node #$nodeId -> direct seed value $seedToUse")
+                        }
                     }
                 }
             }
@@ -794,26 +903,60 @@ class LiteGraphConverter(
         nodeId: Int,
         warnings: MutableList<String>
     ) {
-        // Filter to only editable inputs (not connection-only inputs)
+// Filter to only editable inputs (not connection-only inputs)
         val editableInputs = inputDefs.filter { !it.forceInput && !isConnectionOnlyType(it.type) }
 
         var widgetIndex = 0
 
-        // Check if index 0 contains a leading frontend count widget (e.g., lora_count) not in editableInputs
-        if (shouldSkipLeadingWidget(nodeType, widgetValues, editableInputs)) {
-            DebugLogger.d(TAG, "Node #$nodeId ($nodeType): skipping leading frontend count widget '${widgetValues.opt(0)}'")
-            widgetIndex++
+        // Skip leading frontend count/mode/preset widgets not in editableInputs
+        val skipCount = shouldSkipLeadingWidget(nodeType, widgetValues, editableInputs)
+        if (skipCount > 0) {
+            DebugLogger.d(TAG, "Node #$nodeId ($nodeType): skipping $skipCount leading frontend widget(s)")
+            widgetIndex += skipCount
         }
 
-        for (inputDef in editableInputs) {
-            if (widgetIndex >= widgetValues.length()) break
-
+        var inputIndex = 0
+        while (inputIndex < editableInputs.size && widgetIndex < widgetValues.length()) {
             val value = widgetValues.opt(widgetIndex)
 
-            // Skip control widgets defined in server (rare, but handle it)
-            if (inputDef.name == "control_after_generate" ||
-                inputDef.name.startsWith("control_")) {
+            // 1. Skip frontend control widget strings (e.g. "randomize", "fixed", "increment", "decrement")
+            if (value is String && value in CONTROL_WIDGET_VALUES) {
                 widgetIndex++
+                continue
+            }
+
+            // 2. Smart jump matching for distinct value types when widgets_values sequence doesn't align 1-to-1
+            if (value != null && value != JSONObject.NULL) {
+                val strValue = value.toString().lowercase()
+
+                // Check if value is a sampler name (e.g. "dpmpp_2m", "euler")
+                if (value is String && (strValue in SAMPLER_NAMES || strValue.contains("dpm") || strValue.contains("euler"))) {
+                    val samplerIdx = editableInputs.indexOfFirst { it.name == "sampler_name" || it.name == "sampler" }
+                    if (samplerIdx >= 0 && inputIndex < samplerIdx) {
+                        inputIndex = samplerIdx
+                    }
+                }
+                // Check if value is a scheduler name (e.g. "normal", "karras")
+                else if (value is String && strValue in SCHEDULER_NAMES) {
+                    val schedulerIdx = editableInputs.indexOfFirst { it.name == "scheduler" }
+                    if (schedulerIdx >= 0 && inputIndex < schedulerIdx) {
+                        inputIndex = schedulerIdx
+                    }
+                }
+                // Check if value is a seed number (e.g. large integer > 99999)
+                else if (value is Number && value.toLong() > 99999L) {
+                    val seedIdx = editableInputs.indexOfFirst { it.name in SEED_INPUT_NAMES }
+                    if (seedIdx >= 0 && inputIndex < seedIdx) {
+                        inputIndex = seedIdx
+                    }
+                }
+            }
+
+            val inputDef = editableInputs[inputIndex]
+
+            // Skip control widgets defined in server (rare, but handle it)
+            if (inputDef.name == "control_after_generate" || inputDef.name.startsWith("control_")) {
+                inputIndex++
                 continue
             }
 
@@ -823,39 +966,30 @@ class LiteGraphConverter(
             }
 
             widgetIndex++
-
-            // After mapping a seed input, check if next widget value is a control value
-            // (control_after_generate is frontend-only and not in server's /object_info)
-            if (inputDef.name in SEED_INPUT_NAMES && widgetIndex < widgetValues.length()) {
-                val nextValue = widgetValues.opt(widgetIndex)
-                if (nextValue is String && nextValue in CONTROL_WIDGET_VALUES) {
-                    widgetIndex++
-                }
-            }
+            inputIndex++
         }
     }
 
     /**
-     * Check if the first widget in widgetValues is a leading frontend count/control widget
-     * (such as lora_count) that is not included in the server's /object_info input definitions.
+     * Check if the leading widgets in widgetValues are count/mode/preset widgets
+     * that are not included in the server's /object_info input definitions.
+     * Returns the number of leading widgets to skip.
      */
     private fun shouldSkipLeadingWidget(
         nodeType: String,
         widgetValues: JSONArray,
         editableInputs: List<InputDefinition>
-    ): Boolean {
-        if (widgetValues.length() == 0 || editableInputs.isEmpty()) return false
+    ): Int {
+        if (widgetValues.length() == 0 || editableInputs.isEmpty()) return 0
 
         val firstInputName = editableInputs.first().name
 
         // If editableInputs already has a count input at index 0, do not skip it
         if (firstInputName in COUNT_WIDGET_NAMES) {
-            return false
+            return 0
         }
 
-        val firstWidgetValue = widgetValues.opt(0) ?: return false
-
-        // Check if node is a Lora stack node or general stack node
+        var skipCount = 0
         val isStackNode = nodeType.contains("LoraStack", ignoreCase = true) ||
                 nodeType.contains("LoRAStack", ignoreCase = true) ||
                 nodeType.contains("Lora Stack", ignoreCase = true) ||
@@ -865,42 +999,26 @@ class LiteGraphConverter(
                 (nodeType.startsWith("CR_") && nodeType.contains("Stack", ignoreCase = true)) ||
                 nodeType.contains("Stack", ignoreCase = true)
 
-        // Check if first widget value is a count number (e.g. Int or numeric String)
-        val isCountValue = when (firstWidgetValue) {
-            is Number -> true
-            is String -> firstWidgetValue.toIntOrNull() != null
-            else -> false
-        }
-
-        // Check if first input in definition expects a switch or lora name (not a count)
-        val firstInputIsSwitchOrLora = firstInputName.startsWith("switch") ||
-                firstInputName.startsWith("lora_name") ||
-                firstInputName.startsWith("lora_") ||
-                firstInputName.startsWith("model_weight") ||
-                firstInputName.startsWith("clip_weight")
-
-        if (isStackNode && isCountValue && firstInputIsSwitchOrLora) {
-            return true
-        }
-
-        // Check if second widget value matches first input definition while first widget is a count
-        if (widgetValues.length() > 1 && isCountValue) {
-            val secondWidgetValue = widgetValues.opt(1)
-            val firstInputDef = editableInputs.first()
-            val isSecondValueMatchingFirstInput = when (firstInputDef.type) {
-                "ENUM" -> {
-                    val opts = firstInputDef.options ?: emptyList()
-                    secondWidgetValue is String && (opts.isEmpty() || secondWidgetValue in opts || secondWidgetValue in setOf("On", "Off", "true", "false"))
-                }
-                "BOOLEAN" -> secondWidgetValue is Boolean || secondWidgetValue in setOf("true", "false", "On", "Off")
+        if (isStackNode && (firstInputName.startsWith("switch") || firstInputName.startsWith("lora_name"))) {
+            while (skipCount < widgetValues.length()) {
+                val valObj = widgetValues.opt(skipCount)
+                val isSwitchValue = valObj is Boolean || valObj == "On" || valObj == "Off" || valObj == "true" || valObj == "false"
+                if (isSwitchValue) break
+                skipCount++
+            }
+        } else {
+            val firstWidgetValue = widgetValues.opt(0) ?: return 0
+            val isCountValue = when (firstWidgetValue) {
+                is Number -> true
+                is String -> firstWidgetValue.toIntOrNull() != null
                 else -> false
             }
-            if (isSecondValueMatchingFirstInput) {
-                return true
+            if (isCountValue && (firstInputName.startsWith("switch") || firstInputName.startsWith("lora_name"))) {
+                skipCount = 1
             }
         }
 
-        return false
+        return skipCount
     }
 
     /**
@@ -1040,8 +1158,8 @@ class LiteGraphConverter(
      * to ensure widget values are mapped even if server object_info is missing.
      */
     private fun getKnownNodeFallback(nodeType: String): List<InputDefinition>? {
-        return when (nodeType) {
-            "FaceDetailer", "FaceDetailerPipe", "DetailerForEach", "DetailerForEachPipe" -> listOf(
+        return when {
+            nodeType == "FaceDetailer" || nodeType == "FaceDetailerPipe" || nodeType == "DetailerForEach" || nodeType == "DetailerForEachPipe" -> listOf(
                 InputDefinition("guide_size", "FLOAT", true, 512.0),
                 InputDefinition("guide_size_for", "BOOLEAN", true, true),
                 InputDefinition("max_size", "FLOAT", true, 1024.0),
@@ -1059,6 +1177,16 @@ class LiteGraphConverter(
                 InputDefinition("denoise", "FLOAT", true, 0.5),
                 InputDefinition("feather", "INT", true, 5)
             )
+            nodeType.contains("Lora", ignoreCase = true) && nodeType.contains("Stack", ignoreCase = true) -> {
+                val list = mutableListOf<InputDefinition>()
+                for (i in 1..10) {
+                    list.add(InputDefinition("switch_$i", "ENUM", true, options = listOf("On", "Off")))
+                    list.add(InputDefinition("lora_name_$i", "ENUM", true, options = listOf("None")))
+                    list.add(InputDefinition("model_weight_$i", "FLOAT", true, 1.0))
+                    list.add(InputDefinition("clip_weight_$i", "FLOAT", true, 1.0))
+                }
+                list
+            }
             else -> null
         }
     }

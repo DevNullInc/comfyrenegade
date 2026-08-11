@@ -1,19 +1,19 @@
-# <img src="metadata/en-US/icon.png" width="42"/> ComfyChair
+# <img src="metadata/en-US/icon.png" width="42"/> ComfyRenegade
 
-An unofficial, native Android UI for [ComfyUI](https://github.com/comfyanonymous/ComfyUI).
+An unofficial, native Android UI for [ComfyUI](https://github.com/comfyanonymous/ComfyUI). Forked from ComfyChair with advanced workflow graph processing, full subgraph import support, and enhanced custom node compatibility.
 
 **Current version**: v0.8.12
 
 [<img src="https://raw.githubusercontent.com/rubenpgrady/get-it-on-github/refs/heads/main/get-it-on-github.png"
     alt="Get it on GitHub"
-    height="80">](https://github.com/legal-hkr/comfychair/releases/latest)
+    height="80">](https://github.com/legal-hkr/ComfyRenegade/releases/latest)
 [<img src="https://f-droid.org/badge/get-it-on.png"
     alt="Get it on F-Droid"
-    height="80">](https://f-droid.org/packages/sh.hnet.comfychair)
+    height="80">](https://f-droid.org/packages/sh.hnet.ComfyRenegade)
 
 ## Overview
 
-ComfyChair provides a streamlined mobile interface for interacting with ComfyUI servers, allowing you to generate and manage AI images and videos directly from your Android device. The app communicates with your ComfyUI server via its API, bringing the power of node-based AI generation to your mobile workflow.
+ComfyRenegade provides a streamlined mobile interface for interacting with ComfyUI servers, allowing you to generate and manage AI images and videos directly from your Android device. The app communicates with your ComfyUI server via its API, bringing the power of advanced node-based AI generation and complex workflows to your mobile device.
 
 **Note**: This is an independent, community-developed project and is not officially affiliated with or endorsed by the ComfyUI team.
 
@@ -45,6 +45,25 @@ ComfyChair provides a streamlined mobile interface for interacting with ComfyUI 
   - Search presets by name, prompt text, or tags
 - **Localization**: Available in English (default), German, French, Polish, Spanish, and Chinese with per-app language selection
 - **Native Android experience**: Built with Kotlin and Jetpack Compose with Material Design 3
+
+### Advanced Workflow Engine & Full Import
+
+- **Full Workflow Import Capabilities**:
+  - Import native ComfyUI web workflows (`.json` LiteGraph format), direct ComfyUI API prompt payloads (`.json` API format), and native ComfyRenegade workflows.
+- **Subgraph Flattening & Execution Engine**:
+  - Full support for nested subgraphs (e.g. `massive-detail`), automatically expanding subgraphs into executable flat API graphs at generation time while remapping internal node IDs and resolving virtual input/output connections.
+- **Smart VAE Auto-Linking & Multi-Loader Resolution**:
+  - Auto-detects missing or unlinked VAE connections on decode and detailer nodes (`VAEDecode`, `FaceDetailer`, `DetailerForEach`, `FaceDetailerPipe`), matching target VAEs by inspecting `vae_name` filenames across multiple VAE loader nodes.
+  - Preserves dedicated internal VAEs on custom nodes (such as Lotus Depth estimators).
+- **Single-Source Seed Propagation**:
+  - Dedicated seed generator nodes (`ttN seed`, `Seed`) automatically propagate their active seed values directly to downstream detailer nodes (`FaceDetailer`, `HandDetailer`, `EyeDetailer`, `BreastDetailer`, `NippleDetailer`).
+  - Automatically resolves dangling subgraph seed links pointing to missing internal nodes.
+- **Connection Slot Protection**:
+  - Guards active node connection links (`vae`, `model`, `clip`, `lora_stack`, `positive`, `negative`, `latent_image`) from being accidentally overwritten by primitive widget values or string filenames during node attribute edits.
+- **Intelligent Parameter & Widget Mapping**:
+  - Type- and pattern-aware jump-matching for sampler names (`dpmpp_2m`, `euler`), scheduler names (`karras`, `normal`), seeds (`>99999`), and multi-widget frontend skips on complex stack nodes (e.g. `Lora Stack [Eclipse]`).
+- **Enhanced Custom Node Compatibility**:
+  - Built-in support and fallback definitions for popular custom node ecosystems including ComfyUI Impact Pack, ComfyUI Eclipse, RES4LYF, and Ultralytics Detector Providers.
 
 ### Generation Modes
 
@@ -81,7 +100,7 @@ ComfyChair provides a streamlined mobile interface for interacting with ComfyUI 
   - Pull-to-refresh to update gallery
   - Multi-select mode with dedicated button or long press to select items
   - Batch operations: save, share, or delete multiple items at once
-- **Media management**: Save to device gallery (Pictures/ComfyChair or Movies/ComfyChair) or share
+- **Media management**: Save to device gallery (Pictures/ComfyRenegade or Movies/ComfyRenegade) or share
 
 ### Workflows
 
@@ -110,7 +129,7 @@ ComfyChair provides a streamlined mobile interface for interacting with ComfyUI 
   - All editable inputs shown, including those using default values
   - Full support for both legacy and new ComfyUI COMBO input formats
   - Numeric steppers with floating labels, range hints, and increment/decrement buttons
-  - Boolean values displayed as on/off toggles
+  - Boolean values displayed as toggle switches
   - Image previews for image selector fields
   - Template values highlighted with "UI:" prefix
   - Connected inputs styled with wire colors
@@ -129,7 +148,7 @@ ComfyChair provides a streamlined mobile interface for interacting with ComfyUI 
   - Supported formats:
     - ComfyUI LiteGraph (import only) - native ComfyUI workflow format with subgraph support
     - ComfyUI API JSON (import/export) - workflow format used by the ComfyUI API
-    - ComfyChair JSON (import/export) - preserves field mappings and app settings
+    - ComfyRenegade JSON (import/export) - preserves field mappings and app settings
   - Dynamic workflow thumbnails showing mini graph previews
   - Context menus for edit, rename, duplicate, export, and delete
   - Flexible field mapping: only Positive Prompt required (plus source image for image workflows)
@@ -174,8 +193,8 @@ ComfyChair provides a streamlined mobile interface for interacting with ComfyUI 
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/legal-hkr/comfychair.git
-   cd comfychair
+   git clone https://github.com/legal-hkr/ComfyRenegade.git
+   cd ComfyRenegade
    ```
 
 2. Set up your local environment:
@@ -234,4 +253,3 @@ This project follows standard Android development practices:
 ## Acknowledgments
 
 - [ComfyUI](https://github.com/comfyanonymous/ComfyUI) - The powerful node-based UI this app interfaces with
-- [Claude](https://claude.ai) by Anthropic - AI assistant that provided valuable support during the development process, helping with code implementation, architecture decisions, and documentation

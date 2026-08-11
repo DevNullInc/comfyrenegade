@@ -1446,8 +1446,8 @@ object WorkflowManager {
                     // Only update if the input exists and is not a connection
                     if (inputs.has(inputName)) {
                         val currentValue = inputs.opt(inputName)
-                        // Don't overwrite connections (JSONArray format)
-                        if (currentValue !is JSONArray) {
+                        // Don't overwrite connections (JSONArray format or connection input names)
+                        if (currentValue !is JSONArray && !sh.hnet.comfychair.workflow.WorkflowParser.isConnectionInputName(inputName)) {
                             when (value) {
                                 is String -> inputs.put(inputName, value)
                                 is Int -> inputs.put(inputName, value)
@@ -1549,19 +1549,22 @@ object WorkflowManager {
                 val inputs = node.optJSONObject("inputs")
                 if (inputs != null) {
                     nodeEdits.forEach { (inputName, value) ->
-                        // Only apply if input exists (don't add new inputs)
+                        // Only apply if input exists and is not a connection slot
                         if (inputs.has(inputName)) {
-                            when (value) {
-                                is String -> inputs.put(inputName, value)
-                                is Int -> inputs.put(inputName, value)
-                                is Long -> inputs.put(inputName, value.toInt())
-                                is Float -> inputs.put(inputName, value.toDouble())
-                                is Double -> inputs.put(inputName, value)
-                                is Boolean -> inputs.put(inputName, value)
-                                else -> inputs.put(inputName, value.toString())
+                            val currentValue = inputs.opt(inputName)
+                            if (currentValue !is JSONArray && !sh.hnet.comfychair.workflow.WorkflowParser.isConnectionInputName(inputName)) {
+                                when (value) {
+                                    is String -> inputs.put(inputName, value)
+                                    is Int -> inputs.put(inputName, value)
+                                    is Long -> inputs.put(inputName, value.toInt())
+                                    is Float -> inputs.put(inputName, value.toDouble())
+                                    is Double -> inputs.put(inputName, value)
+                                    is Boolean -> inputs.put(inputName, value)
+                                    else -> inputs.put(inputName, value.toString())
+                                }
+                                modified = true
+                                DebugLogger.d(TAG, "Applied edit: node $nodeId, $inputName = $value")
                             }
-                            modified = true
-                            DebugLogger.d(TAG, "Applied edit: node $nodeId, $inputName = $value")
                         }
                     }
                 }
