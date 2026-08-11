@@ -133,4 +133,128 @@ class LiteGraphConverterTest {
         assertEquals("Off", node24Inputs.getString("switch_1"))
         assertEquals("None", node24Inputs.getString("lora_name_1"))
     }
+
+    @Test
+    fun testFaceDetailerFallbackWidgetMapping() {
+        val converter = LiteGraphConverter { null } // No server definitions registered
+
+        val liteGraphJson = JSONObject().apply {
+            put("nodes", JSONArray().apply {
+                put(JSONObject().apply {
+                    put("id", 7)
+                    put("type", "FaceDetailer")
+                    put("widgets_values", JSONArray().apply {
+                        put(512.0) // guide_size
+                        put(true)  // guide_size_for
+                        put(1024.0)// max_size
+                        put(0)     // offset_x
+                        put(0)     // offset_y
+                        put(3.0)   // crop_factor
+                        put(10)    // drop_size
+                        put("")    // wildcard
+                        put(1)     // cycle
+                        put(false) // inpaint_model
+                        put(20)    // noise_mask_feather
+                        put(12345) // seed
+                        put("randomize") // control_after_generate (frontend only)
+                        put(20)    // steps
+                        put(8.0)   // cfg
+                        put("euler") // sampler_name
+                        put("normal") // scheduler
+                        put(0.5)   // denoise
+                        put(5)     // feather
+                    })
+                })
+            })
+            put("links", JSONArray())
+        }
+
+        val result = converter.convert(liteGraphJson)
+        val apiJson = JSONObject(result.jsonContent)
+        val node7Inputs = apiJson.getJSONObject("nodes").getJSONObject("7").getJSONObject("inputs")
+
+        assertEquals(20, node7Inputs.getInt("steps"))
+        assertEquals(8.0, node7Inputs.getDouble("cfg"), 0.001)
+        assertEquals("euler", node7Inputs.getString("sampler_name"))
+        assertEquals("normal", node7Inputs.getString("scheduler"))
+        assertEquals(0.5, node7Inputs.getDouble("denoise"), 0.001)
+        assertEquals(12345, node7Inputs.getInt("seed"))
+    }
+
+    @Test
+    fun testSubgraphVaeConnectionNotOverwrittenByStringWidget() {
+        val converter = LiteGraphConverter { null }
+
+        // Test that proxy widgets containing string filenames ("Wan2_1_VAE_fp32.safetensors") for VAE input
+        // are NEVER mapped into a VAE connection input slot in subgraphs.
+        val liteGraphJson = JSONObject().apply {
+            put("definitions", JSONObject().apply {
+                put("subgraphs", JSONArray().apply {
+                    put(JSONObject().apply {
+                        put("id", "test-subgraph")
+                        put("inputNodeId", -10)
+                        put("outputNodeId", -20)
+                        put("inputs", JSONArray().apply {
+                            put(JSONObject().apply {
+                                put("name", "vae")
+                                put("type", "VAE")
+                            })
+                        })
+                        put("nodes", JSONArray().apply {
+                            put(JSONObject().apply {
+                                put("id", 100)
+                                put("type", "VAEDecode")
+                                put("inputs", JSONArray().apply {
+                                    put(JSONObject().apply {
+                                        put("name", "vae")
+                                        put("type", "VAE")
+                                        put("link", 500)
+                                    })
+                                })
+                            })
+                        })
+                        put("links", JSONArray().apply {
+                            put(JSONArray().apply {
+                                put(500) // linkId
+                                put(-10) // originId (virtual input node)
+                                put(0)   // originSlot (vae slot)
+                                put(100) // targetId (VAEDecode)
+                                put(0)   // targetSlot
+                                put("VAE")
+                            })
+                        })
+                    })
+                })
+            })
+            put("nodes", JSONArray().apply {
+                put(JSONObject().apply {
+                    put("id", 2)
+                    put("type", "test-subgraph")
+                    put("properties", JSONObject().apply {
+                        put("proxyWidgets", JSONArray().apply {
+                            put(JSONArray().apply {
+                                put(100)
+                                put("vae")
+                            })
+                        })
+                    })
+                    put("widgets_values", JSONArray().apply {
+                        put("Wan2_1_VAE_fp32.safetensors")
+                    })
+                })
+            })
+            put("links", JSONArray())
+        }
+
+        val result = converter.convert(liteGraphJson)
+        val apiJson = JSONObject(result.jsonContent)
+        val nodes = apiJson.getJSONObject("nodes")
+        val internalVaeNode = nodes.optJSONObject("102") // 100 + offset 2
+        val inputs = internalVaeNode?.optJSONObject("inputs")
+
+        // "vae" connection input MUST NOT contain string filename "Wan2_1_VAE_fp32.safetensors"
+        if (inputs != null && inputs.has("vae")) {
+            org.junit.Assert.assertFalse(inputs.opt("vae") is String)
+        }
+    }
 }

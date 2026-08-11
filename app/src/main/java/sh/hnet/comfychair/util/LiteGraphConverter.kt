@@ -4,6 +4,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import sh.hnet.comfychair.workflow.InputDefinition
 import sh.hnet.comfychair.workflow.NodeTypeDefinition
+import sh.hnet.comfychair.workflow.WorkflowParser
 
 /**
  * Converts LiteGraph workflow format (ComfyUI's default "Save" format) to
@@ -578,14 +579,15 @@ class LiteGraphConverter(
 
             // Get node definition for widget mapping
             val nodeDef = getNodeDefinition(nodeType)
+            val inputDefs = nodeDef?.inputs ?: createFallbackInputDefinitions(node, nodeType)
 
             // Build inputs map
             val inputs = JSONObject()
 
             // 1. Map widget values from internal node
             val internalWidgetValues = node.optJSONArray("widgets_values")
-            if (internalWidgetValues != null && nodeDef != null) {
-                mapWidgetValues(internalWidgetValues, nodeDef.inputs, inputs, nodeType, newNodeId, warnings)
+            if (internalWidgetValues != null && inputDefs.isNotEmpty()) {
+                mapWidgetValues(internalWidgetValues, inputDefs, inputs, nodeType, newNodeId, warnings)
             }
 
             // 2. Add connections from internal node's inputs array
@@ -616,8 +618,10 @@ class LiteGraphConverter(
                                 }
                                 inputs.put(inputName, connection)
                             } else if (subgraphInput != null && widgetValueMap.containsKey(subgraphInput.name)) {
-                                // Use widget value from subgraph node
-                                inputs.put(inputName, widgetValueMap[subgraphInput.name])
+                                // Only use widget value for non-connection (primitive) input types
+                                if (!isConnectionOnlyType(subgraphInput.type) && !WorkflowParser.isConnectionInputName(inputName)) {
+                                    inputs.put(inputName, widgetValueMap[subgraphInput.name])
+                                }
                             }
                         } else {
                             // Internal connection - remap source node ID
@@ -717,15 +721,16 @@ class LiteGraphConverter(
 
         // Get node definition for widget mapping
         val nodeDef = getNodeDefinition(nodeType)
+        val inputDefs = nodeDef?.inputs ?: createFallbackInputDefinitions(node, nodeType)
 
         // Build inputs map
         val inputs = JSONObject()
 
         // 1. Map widget values to named inputs
         val widgetValues = node.optJSONArray("widgets_values")
-        if (widgetValues != null && nodeDef != null) {
-            mapWidgetValues(widgetValues, nodeDef.inputs, inputs, nodeType, nodeId, warnings)
-        } else if (widgetValues != null && nodeDef == null) {
+        if (widgetValues != null && inputDefs.isNotEmpty()) {
+            mapWidgetValues(widgetValues, inputDefs, inputs, nodeType, nodeId, warnings)
+        } else if (widgetValues != null && inputDefs.isEmpty()) {
             // Unknown node - can't map widget values
             DebugLogger.w(TAG, "Node #$nodeId ($nodeType): no definition found, cannot map widget values")
             warnings.add("Node \"$nodeType\" (#$nodeId): inputs could not be fully mapped")
@@ -969,6 +974,95 @@ class LiteGraphConverter(
         }
 
         return result
+    }
+
+    /**
+     * Create fallback input definitions when server NodeTypeDefinition is not available.
+     * Uses known fallback schemas, widget names from node inputs array, or value type heuristics.
+     */
+    private fun createFallbackInputDefinitions(node: JSONObject, nodeType: String): List<InputDefinition> {
+        // 1. Check known custom node fallbacks
+        val knownFallback = getKnownNodeFallback(nodeType)
+        if (knownFallback != null) return knownFallback
+
+        val result = mutableListOf<InputDefinition>()
+
+        // 2. Extract widgets from node's inputs array if present
+        val nodeInputs = node.optJSONArray("inputs")
+        if (nodeInputs != null) {
+            for (i in 0 until nodeInputs.length()) {
+                val inputObj = nodeInputs.optJSONObject(i) ?: continue
+                val widgetObj = inputObj.optJSONObject("widget")
+                val widgetName = widgetObj?.optString("name") ?: ""
+                val inputType = inputObj.optString("type", "STRING")
+
+                if (widgetName.isNotEmpty()) {
+                    result.add(
+                        InputDefinition(
+                            name = widgetName,
+                            type = inputType,
+                            isRequired = true
+                        )
+                    )
+                }
+            }
+        }
+
+        if (result.isNotEmpty()) {
+            return result
+        }
+
+        // 3. Value-type based fallback for widgets_values
+        val widgetValues = node.optJSONArray("widgets_values") ?: return emptyList()
+        for (i in 0 until widgetValues.length()) {
+            val valObj = widgetValues.opt(i)
+            val valType = when (valObj) {
+                is Boolean -> "BOOLEAN"
+                is Int, is Long -> "INT"
+                is Float, is Double -> "FLOAT"
+                is String -> "STRING"
+                else -> "STRING"
+            }
+            result.add(
+                InputDefinition(
+                    name = "widget_$i",
+                    type = valType,
+                    isRequired = true
+                )
+            )
+        }
+
+        return result
+    }
+
+    /**
+     * Known input definition fallbacks for key custom nodes (e.g. FaceDetailer)
+     * to ensure widget values are mapped even if server object_info is missing.
+     */
+    private fun getKnownNodeFallback(nodeType: String): List<InputDefinition>? {
+        return when (nodeType) {
+            "FaceDetailer", "FaceDetailerPipe", "DetailerForEach" -> listOf(
+                InputDefinition("guide_size", "FLOAT", true, 512.0),
+                InputDefinition("guide_size_for", "BOOLEAN", true, true),
+                InputDefinition("max_size", "FLOAT", true, 1024.0),
+                InputDefinition("offset_x", "INT", true, 0),
+                InputDefinition("offset_y", "INT", true, 0),
+                InputDefinition("crop_factor", "FLOAT", true, 3.0),
+                InputDefinition("drop_size", "INT", true, 10),
+                InputDefinition("wildcard", "STRING", true, ""),
+                InputDefinition("cycle", "INT", true, 1),
+                InputDefinition("inpaint_model", "BOOLEAN", true, false),
+                InputDefinition("noise_mask_feather", "INT", true, 20),
+                InputDefinition("seed", "INT", true, 0),
+                InputDefinition("steps", "INT", true, 20),
+                InputDefinition("cfg", "FLOAT", true, 8.0),
+                InputDefinition("sampler_name", "ENUM", true, "euler"),
+                InputDefinition("scheduler", "ENUM", true, "normal"),
+                InputDefinition("denoise", "FLOAT", true, 0.5),
+                InputDefinition("feather", "INT", true, 5)
+            )
+            else -> null
+        }
     }
 
     /**
