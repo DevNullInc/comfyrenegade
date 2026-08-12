@@ -130,6 +130,9 @@ class SettingsViewModel : ViewModel() {
     private val _isPromptExpandEnabled = MutableStateFlow(false)
     val isPromptExpandEnabled: StateFlow<Boolean> = _isPromptExpandEnabled.asStateFlow()
 
+    private val _fontFamilyKey = MutableStateFlow("default")
+    val fontFamilyKey: StateFlow<String> = _fontFamilyKey.asStateFlow()
+
     private val _events = MutableSharedFlow<SettingsEvent>()
     val events: SharedFlow<SettingsEvent> = _events.asSharedFlow()
 
@@ -149,6 +152,7 @@ class SettingsViewModel : ViewModel() {
         _edgeRouterId.value = AppSettings.getEdgeRouterId(context)
         _isPromptSpellCheckEnabled.value = AppSettings.isPromptSpellCheckEnabled(context)
         _isPromptExpandEnabled.value = AppSettings.isPromptExpandEnabled(context)
+        _fontFamilyKey.value = AppSettings.getFontFamily(context)
 
         // Initialize debug logger with saved state
         DebugLogger.setEnabled(_isDebugLoggingEnabled.value)
@@ -518,6 +522,15 @@ class SettingsViewModel : ViewModel() {
     }
 
     /**
+     * Set the font family used for app-wide typography.
+     * Persists the key to AppSettings and updates the StateFlow.
+     */
+    fun setFontFamily(context: Context, fontFamilyKey: String) {
+        AppSettings.setFontFamily(context, fontFamilyKey)
+        _fontFamilyKey.value = fontFamilyKey
+    }
+
+    /**
      * Set whether offline mode should be enabled.
      * Offline mode allows browsing cached data without network connectivity.
      * Requires disk-first cache mode to be enabled for full functionality.
@@ -744,6 +757,7 @@ class SettingsViewModel : ViewModel() {
         _edgeRouterId.value = newEdgeRouterId
         _isPromptSpellCheckEnabled.value = newPromptSpellCheck
         _isPromptExpandEnabled.value = newPromptExpand
+        _fontFamilyKey.value = AppSettings.getFontFamily(context)
 
         // Update DebugLogger state to match
         DebugLogger.setEnabled(finalDebugLogging)

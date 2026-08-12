@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BugReport
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -45,6 +46,8 @@ import sh.hnet.comfychair.ui.components.LanguageDropdown
 import sh.hnet.comfychair.ui.components.LanguageOption
 import sh.hnet.comfychair.ui.components.LogViewerDialog
 import sh.hnet.comfychair.ui.components.SettingsScreenScaffold
+import sh.hnet.comfychair.ui.theme.AvailableFontFamilies
+import sh.hnet.comfychair.ui.theme.resolveFontFamily
 import sh.hnet.comfychair.util.DebugLogger
 import sh.hnet.comfychair.viewmodel.SettingsEvent
 import sh.hnet.comfychair.viewmodel.SettingsViewModel
@@ -73,6 +76,7 @@ fun ApplicationSettingsScreen(
     val edgeRouterId by viewModel.edgeRouterId.collectAsState()
     val isPromptSpellCheckEnabled by viewModel.isPromptSpellCheckEnabled.collectAsState()
     val isPromptExpandEnabled by viewModel.isPromptExpandEnabled.collectAsState()
+    val fontFamilyKey by viewModel.fontFamilyKey.collectAsState()
 
     // State and effects
     // Backup/restore state
@@ -256,6 +260,89 @@ fun ApplicationSettingsScreen(
                     Switch(
                         checked = isPromptSpellCheckEnabled,
                         onCheckedChange = { viewModel.setPromptSpellCheckEnabled(context, it) }
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Font selector
+                Text(
+                    text = stringResource(R.string.label_font_family),
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Text(
+                    text = stringResource(R.string.desc_font_family),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Font family string resource mapping
+                val fontDisplayNames = remember {
+                    mapOf(
+                        "default" to R.string.font_system_default,
+                        "open_dyslexic" to R.string.font_open_dyslexic,
+                        "serif" to R.string.font_serif,
+                        "sans_serif" to R.string.font_sans_serif,
+                        "monospace" to R.string.font_monospace,
+                        "cursive" to R.string.font_cursive
+                    )
+                }
+
+                var fontDropdownExpanded by remember { mutableStateOf(false) }
+
+                androidx.compose.foundation.layout.Box {
+                    OutlinedButton(
+                        onClick = { fontDropdownExpanded = true },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = stringResource(
+                                fontDisplayNames[fontFamilyKey] ?: R.string.font_system_default
+                            )
+                        )
+                    }
+
+                    androidx.compose.material3.DropdownMenu(
+                        expanded = fontDropdownExpanded,
+                        onDismissRequest = { fontDropdownExpanded = false }
+                    ) {
+                        AvailableFontFamilies.forEach { (key, fontFamily) ->
+                            val nameResId = fontDisplayNames[key] ?: R.string.font_system_default
+                            androidx.compose.material3.DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        text = stringResource(nameResId),
+                                        fontFamily = fontFamily
+                                    )
+                                },
+                                onClick = {
+                                    viewModel.setFontFamily(context, key)
+                                    fontDropdownExpanded = false
+                                },
+                                leadingIcon = if (key == fontFamilyKey) {
+                                    {
+                                        Icon(
+                                            imageVector = Icons.Filled.Check,
+                                            contentDescription = null
+                                        )
+                                    }
+                                } else null
+                            )
+                        }
+                    }
+                }
+
+                // Font preview
+                Spacer(modifier = Modifier.height(8.dp))
+                Card {
+                    Text(
+                        text = stringResource(R.string.font_preview_text),
+                        style = MaterialTheme.typography.bodyLarge.copy(
+                            fontFamily = resolveFontFamily(fontFamilyKey)
+                        ),
+                        modifier = Modifier.padding(12.dp)
                     )
                 }
             }

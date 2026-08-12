@@ -10,13 +10,24 @@ import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
+import sh.hnet.comfychair.storage.AppSettings
 
-// Default Material 3 color schemes
-// These will be overridden by dynamic colors on Android 12+ if available
-private val DarkColorScheme = darkColorScheme()
+// Custom dark color scheme using the palette from Color.kt
+private val DarkColorScheme = darkColorScheme(
+    primary = DarkPrimary,
+    secondary = DarkSecondary,
+    background = DarkBackground,
+    surface = DarkSurface,
+    onPrimary = Color.White,
+    onSecondary = Color.Black,
+    onBackground = Color.White,
+    onSurface = Color.White
+)
 
 private val LightColorScheme = lightColorScheme()
 
@@ -29,13 +40,26 @@ fun ComfyChairTheme(
     forceDarkStatusBar: Boolean? = null,
     content: @Composable () -> Unit
 ) {
+    val context = LocalContext.current
+
     val colorScheme = when {
         dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            val context = LocalContext.current
             if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
         }
         darkTheme -> DarkColorScheme
         else -> LightColorScheme
+    }
+
+    // Read the persisted font family key and build typography.
+    // Falls back to default if the selected font cannot be resolved.
+    val fontFamilyKey = AppSettings.getFontFamily(context)
+    val typography = remember(fontFamilyKey) {
+        try {
+            val fontFamily = resolveFontFamily(fontFamilyKey)
+            createTypography(fontFamily)
+        } catch (_: Exception) {
+            AppTypography
+        }
     }
 
     // Update status bar icon colors based on theme
@@ -57,7 +81,8 @@ fun ComfyChairTheme(
 
     MaterialTheme(
         colorScheme = colorScheme,
-        typography = Typography,
+        typography = typography,
         content = content
     )
 }
+

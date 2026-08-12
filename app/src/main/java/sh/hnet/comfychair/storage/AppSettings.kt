@@ -18,6 +18,8 @@ object AppSettings {
     private const val KEY_EDGE_ROUTER = "edge_router"
     private const val DEFAULT_EDGE_ROUTER = "hermite"
     private const val KEY_PROMPT_SPELL_CHECK = "prompt_spell_check"
+    private const val KEY_FONT_FAMILY = "font_family"
+    private const val DEFAULT_FONT_FAMILY = "default"
 
     /**
      * Check if live preview is enabled.
@@ -207,6 +209,25 @@ object AppSettings {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .edit()
             .putBoolean(KEY_PROMPT_EXPAND, enabled)
+            .apply()
+    }
+
+    /**
+     * Get the selected font family key.
+     * Default is "default" (system font).
+     */
+    fun getFontFamily(context: Context): String {
+        return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .getString(KEY_FONT_FAMILY, DEFAULT_FONT_FAMILY) ?: DEFAULT_FONT_FAMILY
+    }
+
+    /**
+     * Set the selected font family key.
+     */
+    fun setFontFamily(context: Context, fontFamilyKey: String) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putString(KEY_FONT_FAMILY, fontFamilyKey)
             .apply()
     }
 

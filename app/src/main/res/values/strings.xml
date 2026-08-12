@@ -600,6 +600,21 @@
     <string name="title_about_license">License</string>
     <string name="label_about_license_name">GNU General Public License v3.0 (GPL-3.0)</string>
     <string name="title_about_source">Source Code</string>
+    <string name="title_about_opendyslexic">OpenDyslexic Font</string>
+    <string name="label_about_opendyslexic_license">Licensed under the SIL Open Font License (OFL)</string>
+    <string name="label_about_opendyslexic_desc">OpenDyslexic is a typeface designed to mitigate some of the common reading errors caused by dyslexia.</string>
+
+    <!-- Font selector strings -->
+    <string name="label_font_family">App font</string>
+    <string name="desc_font_family">Choose a typeface for app text</string>
+    <string name="font_system_default">System Default</string>
+    <string name="font_open_dyslexic" translatable="false">OpenDyslexic</string>
+    <string name="font_serif">Serif</string>
+    <string name="font_sans_serif">Sans Serif</string>
+    <string name="font_monospace">Monospace</string>
+    <string name="font_cursive">Cursive</string>
+    <string name="font_preview_text">The quick brown fox jumps over the lazy dog.</string>
+
 
     <!-- Debug Logging strings -->
     <string name="title_debug_logging">Debug logging</string>
