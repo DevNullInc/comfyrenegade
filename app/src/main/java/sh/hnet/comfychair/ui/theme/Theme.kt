@@ -1,6 +1,8 @@
 package sh.hnet.comfychair.ui.theme
 
 import android.app.Activity
+import android.content.Context
+import android.content.SharedPreferences
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
@@ -9,8 +11,12 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
@@ -50,9 +56,22 @@ fun ComfyChairTheme(
         else -> LightColorScheme
     }
 
-    // Read the persisted font family key and build typography.
-    // Falls back to default if the selected font cannot be resolved.
-    val fontFamilyKey = AppSettings.getFontFamily(context)
+    // Observe font family changes from SharedPreferences
+    val sharedPreferences = remember { context.getSharedPreferences(AppSettings.PREFS_NAME, Context.MODE_PRIVATE) }
+    var fontFamilyKey by remember { mutableStateOf(AppSettings.getFontFamily(context)) }
+
+    DisposableEffect(sharedPreferences) {
+        val listener = SharedPreferences.OnSharedPreferenceChangeListener { prefs, key ->
+            if (key == AppSettings.KEY_FONT_FAMILY) {
+                fontFamilyKey = prefs.getString(key, AppSettings.DEFAULT_FONT_FAMILY) ?: AppSettings.DEFAULT_FONT_FAMILY
+            }
+        }
+        sharedPreferences.registerOnSharedPreferenceChangeListener(listener)
+        onDispose {
+            sharedPreferences.unregisterOnSharedPreferenceChangeListener(listener)
+        }
+    }
+
     val typography = remember(fontFamilyKey) {
         try {
             val fontFamily = resolveFontFamily(fontFamilyKey)

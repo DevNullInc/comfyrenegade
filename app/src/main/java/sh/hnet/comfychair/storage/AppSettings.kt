@@ -7,7 +7,7 @@ import android.content.Context
  * Provides access to app-wide settings that need to be checked from multiple places.
  */
 object AppSettings {
-    private const val PREFS_NAME = "AppSettings"
+    internal const val PREFS_NAME = "AppSettings"
     private const val KEY_MEDIA_CACHE_DISABLED = "media_cache_disabled"
     private const val KEY_MEMORY_FIRST_CACHE = "memory_first_cache"
     private const val KEY_LIVE_PREVIEW_ENABLED = "live_preview_enabled"
@@ -18,8 +18,8 @@ object AppSettings {
     private const val KEY_EDGE_ROUTER = "edge_router"
     private const val DEFAULT_EDGE_ROUTER = "hermite"
     private const val KEY_PROMPT_SPELL_CHECK = "prompt_spell_check"
-    private const val KEY_FONT_FAMILY = "font_family"
-    private const val DEFAULT_FONT_FAMILY = "default"
+    internal const val KEY_FONT_FAMILY = "font_family"
+    internal const val DEFAULT_FONT_FAMILY = "default"
 
     /**
      * Check if live preview is enabled.
