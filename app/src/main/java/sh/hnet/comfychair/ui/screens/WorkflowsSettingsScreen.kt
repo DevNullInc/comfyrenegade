@@ -23,6 +23,7 @@ import androidx.compose.foundation.lazy.items
 import sh.hnet.comfychair.ui.components.shared.NoOverscrollContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -201,6 +202,10 @@ fun WorkflowsSettingsScreen(
                 IconButton(onClick = { jsonPickerLauncher.launch("application/json") }) {
                     Icon(Icons.Default.UploadFile, contentDescription = stringResource(R.string.button_import))
                 }
+                // Paste workflow button
+                IconButton(onClick = { viewModel.onOpenPasteWorkflowDialog() }) {
+                    Icon(Icons.Default.AttachFile, contentDescription = stringResource(R.string.button_paste_workflow))
+                }
                 // Menu button
                 SettingsMenuDropdown(
                     onGeneration = onNavigateToGeneration,
@@ -302,6 +307,14 @@ fun WorkflowsSettingsScreen(
                 }
             }
         }
+    }
+
+    // Paste workflow dialog
+    if (uiState.showPasteWorkflowDialog) {
+        PasteWorkflowDialog(
+            onConfirm = viewModel::onPasteWorkflowJsonSubmitted,
+            onDismiss = viewModel::onDismissPasteWorkflowDialog
+        )
     }
 
     // Import dialog
@@ -956,3 +969,47 @@ private fun DuplicateWorkflowDialog(
         }
     )
 }
+
+@Composable
+private fun PasteWorkflowDialog(
+    onConfirm: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var jsonText by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.title_paste_workflow)) },
+        text = {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    text = stringResource(R.string.hint_paste_workflow_json),
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = jsonText,
+                    onValueChange = { jsonText = it },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 140.dp, max = 280.dp),
+                    placeholder = { Text("{ ... }") }
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onConfirm(jsonText) },
+                enabled = jsonText.isNotBlank()
+            ) {
+                Text(stringResource(R.string.button_continue))
+            }
+        },
+        dismissButton = {
+            OutlinedButton(onClick = onDismiss) {
+                Text(stringResource(R.string.button_cancel))
+            }
+        }
+    )
+}
+

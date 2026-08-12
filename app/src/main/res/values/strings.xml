@@ -437,6 +437,9 @@
     <string name="label_workflow_name">Name</string>
     <string name="label_workflow_description">Description</string>
     <string name="title_import_workflow">Import Workflow</string>
+    <string name="title_paste_workflow">Paste Workflow JSON</string>
+    <string name="hint_paste_workflow_json">Paste ComfyUI workflow JSON content below:</string>
+    <string name="button_paste_workflow">Paste workflow</string>
     <string name="title_save_workflow">Save New Workflow</string>
     <string name="title_edit_workflow">Edit Workflow</string>
     <string name="title_delete_workflow">Delete Workflow</string>

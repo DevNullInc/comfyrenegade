@@ -54,6 +54,7 @@ data class WorkflowManagementUiState(
 
     // Import dialog state
     val showImportDialog: Boolean = false,
+    val showPasteWorkflowDialog: Boolean = false,
     val pendingImportJsonContent: String = "",
     val importSelectedType: WorkflowType? = null,
     val importTypeDropdownExpanded: Boolean = false,
@@ -237,6 +238,47 @@ class WorkflowManagementViewModel : ViewModel() {
             } catch (e: Exception) {
                 _events.emit(WorkflowManagementEvent.ShowToast(R.string.error_workflow_import))
                 _uiState.value = _uiState.value.copy(isLoading = false)
+            }
+        }
+    }
+
+    fun onOpenPasteWorkflowDialog() {
+        _uiState.value = _uiState.value.copy(showPasteWorkflowDialog = true)
+    }
+
+    fun onDismissPasteWorkflowDialog() {
+        _uiState.value = _uiState.value.copy(showPasteWorkflowDialog = false)
+    }
+
+    fun onPasteWorkflowJsonSubmitted(jsonText: String) {
+        val trimmed = jsonText.trim()
+        if (trimmed.isEmpty()) {
+            viewModelScope.launch {
+                _events.emit(WorkflowManagementEvent.ShowToast(R.string.error_workflow_invalid_json))
+            }
+            return
+        }
+
+        try {
+            val json = JSONObject(trimmed)
+            val detectedType = WorkflowManager.detectWorkflowType(trimmed)
+            val detectedName = WorkflowJsonAnalyzer.detectWorkflowName(json)
+            val detectedDescription = WorkflowJsonAnalyzer.detectWorkflowDescription(json)
+
+            _uiState.value = _uiState.value.copy(
+                showPasteWorkflowDialog = false,
+                showImportDialog = true,
+                pendingImportJsonContent = trimmed,
+                importSelectedType = detectedType,
+                importTypeDropdownExpanded = false,
+                importName = ValidationUtils.truncateWorkflowName(detectedName),
+                importDescription = ValidationUtils.truncateWorkflowDescription(detectedDescription),
+                importNameError = null,
+                importDescriptionError = null
+            )
+        } catch (e: Exception) {
+            viewModelScope.launch {
+                _events.emit(WorkflowManagementEvent.ShowToast(R.string.error_workflow_invalid_json))
             }
         }
     }
